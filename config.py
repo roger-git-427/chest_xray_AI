@@ -17,6 +17,29 @@ CONDITION    = 'Cardiomegaly'
 CHECKPOINT_PATH = f'checkpoints/checkpoint_{CONDITION.lower()}.pth'
 BEST_MODEL_PATH = f'checkpoints/best_model_{CONDITION.lower()}.pth'
 
+# Spanish labels for UI only (CONDITION stays English for data/code)
+CONDITION_LABEL_ES = {
+    'Cardiomegaly': 'Cardiomegalia',
+    'Effusion': 'Derrame pleural',
+    'Pneumonia': 'Neumonía',
+    'Nodule': 'Nódulo',
+    'Mass': 'Masa',
+    'Atelectasis': 'Atelectasia',
+    'Consolidation': 'Consolidación',
+    'Edema': 'Edema',
+    'Emphysema': 'Enfisema',
+    'Fibrosis': 'Fibrosis',
+    'Pleural_Thickening': 'Engrosamiento pleural',
+    'Hernia': 'Hernia',
+    'Pneumothorax': 'Neumotórax',
+    'Infiltration': 'Infiltración',
+}
+
+
+def condition_label_es(condition=None):
+    condition = condition or CONDITION
+    return CONDITION_LABEL_ES.get(condition, condition.replace('_', ' '))
+
 # ── Training ──────────────────────────────────────────────
 SEED       = 42
 IMG_SIZE   = 224

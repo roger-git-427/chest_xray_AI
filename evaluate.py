@@ -49,7 +49,9 @@ def main():
     print(f"\nThreshold analysis:")
     for threshold in [0.1, 0.2, 0.3, 0.4, 0.5]:
         preds = (probs >= threshold).astype(int)
-        tn, fp, fn, tp = confusion_matrix(labels, preds).ravel()
+        tn, fp, fn, tp = confusion_matrix(
+            labels, preds, labels=[0, 1]
+        ).ravel()
         sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0
         specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
         print(f"  Threshold {threshold:.1f} → "

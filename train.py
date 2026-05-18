@@ -16,13 +16,16 @@ from dataset import load_data, make_loaders
 from model import build_model, build_criterion, build_optimizer, build_scheduler
 
 
-def save_checkpoint(epoch, model, optimizer, scheduler, best_val_loss, val_auc):
+def save_checkpoint(
+    epoch, model, optimizer, scheduler, best_val_loss, best_val_auc, val_auc
+):
     torch.save({
         'epoch':           epoch,
         'model_state':     model.state_dict(),
         'optimizer_state': optimizer.state_dict(),
         'scheduler_state': scheduler.state_dict(),
         'best_val_loss':   best_val_loss,
+        'best_val_auc':    best_val_auc,
         'val_auc':         val_auc
     }, CHECKPOINT_PATH)
 
@@ -30,19 +33,21 @@ def save_checkpoint(epoch, model, optimizer, scheduler, best_val_loss, val_auc):
 def load_checkpoint(model, optimizer, scheduler):
     if not os.path.exists(CHECKPOINT_PATH):
         print("Starting fresh training.")
-        return 0, float('inf')
+        return 0, float('inf'), float('-inf')
 
     print("Resuming from checkpoint...")
     ckpt = torch.load(CHECKPOINT_PATH, map_location=DEVICE)
     model.load_state_dict(ckpt['model_state'])
     optimizer.load_state_dict(ckpt['optimizer_state'])
     scheduler.load_state_dict(ckpt['scheduler_state'])
-    start_epoch   = ckpt['epoch'] + 1
-    best_val_loss = ckpt['best_val_loss']
+    start_epoch    = ckpt['epoch'] + 1
+    best_val_loss  = ckpt['best_val_loss']
+    best_val_auc   = ckpt.get('best_val_auc', float('-inf'))
     print(f"Resumed from epoch {start_epoch} | "
-          f"Best val loss: {best_val_loss:.4f} | "
+          f"Min val loss: {best_val_loss:.4f} | "
+          f"Best val AUC: {best_val_auc:.4f} | "
           f"Last val AUC: {ckpt['val_auc']:.4f}")
-    return start_epoch, best_val_loss
+    return start_epoch, best_val_loss, best_val_auc
 
 
 def train_epoch(model, loader, criterion, optimizer):
@@ -107,7 +112,9 @@ def main():
     scheduler = build_scheduler(optimizer)
 
     # ── Resume ──
-    start_epoch, best_val_loss = load_checkpoint(model, optimizer, scheduler)
+    start_epoch, best_val_loss, best_val_auc = load_checkpoint(
+        model, optimizer, scheduler
+    )
 
     # ── Training loop ──
     for epoch in range(start_epoch, NUM_EPOCHS):
@@ -118,20 +125,25 @@ def main():
 
         scheduler.step(val_loss)
 
-        improved = val_loss < best_val_loss
-        marker   = "  → ✓ Saved best model" if improved else ""
+        improved_auc = val_auc > best_val_auc
+        marker       = "  → ✓ Saved best model (val AUC)" if improved_auc else ""
 
         print(f"  Train Loss: {train_loss:.4f} | "
               f"Val Loss: {val_loss:.4f} | "
               f"Val AUC: {val_auc:.4f}{marker}")
 
-        if improved:
-            best_val_loss = val_loss
+        if improved_auc:
+            best_val_auc = val_auc
             torch.save(model.state_dict(), BEST_MODEL_PATH)
 
-        save_checkpoint(epoch, model, optimizer, scheduler, best_val_loss, val_auc)
+        best_val_loss = min(best_val_loss, val_loss)
+        save_checkpoint(
+            epoch, model, optimizer, scheduler,
+            best_val_loss, best_val_auc, val_auc
+        )
 
-    print(f"\nTraining complete. Best val loss: {best_val_loss:.4f}")
+    print(f"\nTraining complete. Min val loss: {best_val_loss:.4f} | "
+          f"Best val AUC: {best_val_auc:.4f}")
 
 
 if __name__ == '__main__':

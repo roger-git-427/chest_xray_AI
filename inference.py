@@ -1,61 +1,85 @@
 # ── inference.py ──────────────────────────────────────────
-# Run prediction on a single chest X-ray image.
-# Run from terminal: python inference.py --image path/to/xray.png
+# CLI: python inference.py --image path/to/xray.png
 
 import argparse
+from pathlib import Path
+
 import torch
 from PIL import Image
 
-from config import DEVICE, BEST_MODEL_PATH, IMG_SIZE
+from config import CONDITION, DEVICE, BEST_MODEL_PATH, condition_label_es
 from dataset import val_transform
 from model import build_model
 
-CONDITIONS_THRESHOLD = 0.3  # flag anything above 30% for review
+REVIEW_THRESHOLD = 0.3
 
 
-def predict(image_path, model):
+def load_model(weights_path=BEST_MODEL_PATH):
+    model = build_model()
+    model.load_state_dict(
+        torch.load(weights_path, map_location=DEVICE, weights_only=True)
+    )
     model.eval()
+    return model
 
-    try:
-        image = Image.open(image_path).convert('RGB')
-    except Exception as e:
-        print(f"Error loading image: {e}")
-        return
+
+def predict_image(image, model):
+    """image: path (str | Path) or PIL.Image. Returns result dict."""
+    if isinstance(image, (str, Path)):
+        image = Image.open(image).convert('RGB')
+    else:
+        image = image.convert('RGB')
 
     tensor = val_transform(image).unsqueeze(0).to(DEVICE)
-
     with torch.no_grad():
-        logit = model(tensor)
-        prob  = torch.sigmoid(logit).item()
+        prob = torch.sigmoid(model(tensor)).item()
 
-    print(f"\nChest X-Ray Analysis")
-    print(f"{'─'*30}")
-    print(f"Image:       {image_path}")
-    print(f"Pneumonia probability: {prob:.2%}")
-    print(f"{'─'*30}")
+    flagged = prob >= REVIEW_THRESHOLD
+    return {
+        'condition': CONDITION,
+        'condition_label': condition_label_es(),
+        'probability': prob,
+        'threshold': REVIEW_THRESHOLD,
+        'flagged': flagged,
+        'recommendation': (
+            'Derivar a radiólogo para confirmación'
+            if flagged else 'Seguimiento de rutina'
+        ),
+    }
 
-    if prob >= CONDITIONS_THRESHOLD:
-        print(f"⚠ FLAGGED for review — probability above {CONDITIONS_THRESHOLD:.0%} threshold")
-        print(f"Recommendation: Refer to radiologist for confirmation")
+
+def print_result(image_path, result):
+    print(f"\nAnálisis de radiografía de tórax")
+    print(f"{'─'*30}")
+    print(f"Imagen:      {image_path}")
+    print(f"Probabilidad de {result['condition_label']}: {result['probability']:.2%}")
+    print(f"{'─'*30}")
+    if result['flagged']:
+        t = result['threshold']
+        print(f"⚠ MARCADO para revisión — probabilidad por encima del umbral del {t:.0%}")
+        print(f"Recomendación: {result['recommendation']}")
     else:
-        print(f"✓ Below threshold — routine follow-up")
-
-    print(f"\n⚠ DISCLAIMER: This is a preliminary screening tool only.")
-    print(f"  All results must be reviewed by a qualified physician.")
-    print(f"  This output does not constitute a medical diagnosis.")
+        print(f"✓ Por debajo del umbral — {result['recommendation'].lower()}")
+    print(f"\n⚠ AVISO: herramienta de tamizaje preliminar únicamente.")
+    print(f"  Todos los resultados deben ser revisados por un médico calificado.")
+    print(f"  Este resultado no constituye un diagnóstico médico.")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Chest X-Ray Pneumonia Screener')
-    parser.add_argument('--image', type=str, required=True, help='Path to chest X-ray image')
-    parser.add_argument('--model', type=str, default=BEST_MODEL_PATH, help='Path to model weights')
+    parser = argparse.ArgumentParser(
+        description=f'Tamizaje de radiografía — {condition_label_es()}'
+    )
+    parser.add_argument(
+        '--image', type=str, required=True, help='Ruta a la radiografía'
+    )
+    parser.add_argument(
+        '--model', type=str, default=BEST_MODEL_PATH, help='Ruta a los pesos del modelo'
+    )
     args = parser.parse_args()
 
-    model = build_model()
-    model.load_state_dict(torch.load(args.model, map_location=DEVICE))
-    print(f"Model loaded from {args.model}")
-
-    predict(args.image, model)
+    model = load_model(args.model)
+    print(f"Modelo cargado desde {args.model}")
+    print_result(args.image, predict_image(args.image, model))
 
 
 if __name__ == '__main__':

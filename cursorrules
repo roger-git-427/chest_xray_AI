@@ -1,0 +1,112 @@
+# Chest X-Ray AI Pipeline — Cursor Rules
+
+## Project Overview
+This is a medical imaging AI pipeline for chest X-ray disease detection.
+It uses ConvNeXt-Tiny pretrained on ImageNet-22K to classify thoracic conditions
+from the NIH ChestX-ray14 dataset (112,120 images, 14 conditions).
+
+The project is being built as a commercial diagnostic AI product targeting
+private clinics in Tijuana, Mexico. The long-term vision is a full diagnostic
+platform for Latin America starting with chest X-ray screening.
+
+---
+
+## Current Status
+- Condition: Cardiomegaly (configurable — change CONDITION in config.py)
+- Architecture: ConvNeXt-Tiny (convnext_tiny.fb_in22k_ft_in1k)
+- Framework: PyTorch 2.2.0 + timm 1.0.3
+- Python: 3.12.10
+- CUDA: 11.8 (NVIDIA GeForce RTX 4050 Laptop GPU, 6GB VRAM)
+- OS: Windows 11
+- Training: In progress — binary classification with BCEWithLogitsLoss + pos_weight
+
+---
+
+## File Structure
+- config.py     — all hyperparameters and paths. Change CONDITION here to switch diseases.
+- utils.py      — seed setting, worker init, directory helpers
+- dataset.py    — ChestXrayDataset class, transforms, data loading, train/val/test splits
+- model.py      — ConvNeXt-Tiny, BCEWithLogitsLoss with pos_weight, AdamW, ReduceLROnPlateau
+- train.py      — main training loop with checkpoint save/resume
+- evaluate.py   — test set evaluation with AUC, sensitivity, specificity, threshold analysis
+- inference.py  — single image prediction with clinical disclaimer
+- scan.py       — scans dataset for corrupted PNG files
+
+---
+
+## Key Design Decisions
+
+### Configurable condition
+CONDITION in config.py drives everything. Changing it switches the target disease
+across dataset labels, pos_weight calculation, checkpoint filenames, and print statements.
+Valid values: 'Cardiomegaly', 'Effusion', 'Pneumonia', 'Nodule', 'Mass',
+'Atelectasis', 'Consolidation', 'Edema', 'Emphysema', 'Fibrosis',
+'Pleural_Thickening', 'Hernia', 'Pneumothorax', 'Infiltration'
+
+### Class imbalance handling
+BCEWithLogitsLoss with pos_weight = neg_count / pos_count computed from train_df.
+Current cardiomegaly pos_weight ≈ 49.7 (1,536 positives out of 77,871 training images).
+
+### Checkpoint resume
+train.py automatically resumes from checkpoints/checkpoint_{condition}.pth if it exists.
+Checkpoint saves model_state, optimizer_state, scheduler_state, epoch, best_val_loss, val_auc.
+
+### Windows constraints
+num_workers=0 in DataLoader — Windows multiprocessing causes hangs in both
+Jupyter notebooks and .py scripts with num_workers > 0 on this machine.
+Do NOT suggest changing num_workers > 0.
+
+### No RLHF or LLM components
+This is a pure computer vision classification pipeline.
+Do not suggest LLM-based approaches, prompt engineering, or language model integration.
+
+---
+
+## Environment
+```
+torch==2.2.0+cu118
+torchvision==0.17.0+cu118
+timm==1.0.3
+scikit-learn
+numpy==1.26.4
+pandas
+Pillow
+tqdm
+```
+
+---
+
+## Data
+- Dataset: NIH ChestX-ray14
+- Images: 112,120 PNG files at data/images/images/
+- Labels: data/Data_Entry_2017_v2020.csv
+- Official splits: data/train_val_list.txt and data/test_list.txt
+- Train: 77,871 | Val: 8,653 | Test: 25,596
+- Images are 1024x1024 originally, resized to IMG_SIZE (default 224) during loading
+
+---
+
+## Current Training Results
+- Cardiomegaly epoch 1 Val AUC: 0.6803
+- Target: Val AUC > 0.85 by epoch 30
+- Pneumonia previous run: peaked around 0.73 at epoch 10
+
+---
+
+## What NOT to suggest
+- Do not suggest num_workers > 0
+- Do not suggest training from scratch (pretrained=False)
+- Do not suggest changing the dataset split from the official NIH split
+- Do not suggest running on Kaggle or Google Colab — training runs locally
+- Do not suggest LLM or multimodal approaches
+- Do not suggest removing pos_weight — class imbalance is severe
+- Do not suggest accuracy as a metric — dataset is severely imbalanced, AUC is the only valid metric
+
+---
+
+## What to prioritize when suggesting changes
+1. Stability over complexity — simple changes that improve AUC without risking overfitting
+2. Windows compatibility — all suggestions must work on Windows with num_workers=0
+3. VRAM budget — RTX 4050 has 6GB, batch_size=32 at 224x224 uses ~0.5GB currently
+4. Reproducibility — SEED=42 is set everywhere, maintain this
+5. Modularity — keep changes isolated to the relevant file, don't mix concerns

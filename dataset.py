@@ -98,7 +98,7 @@ def load_data():
     )
 
     print(f"Train: {len(train_df)} | Val: {len(val_df)} | Test: {len(test_df)}")
-    print(f"Cardiomegaly — Train: {train_df[CONDITION].sum():.0f} | "
+    print(f"{CONDITION} — Train: {train_df[CONDITION].sum():.0f} | "
           f"Val: {val_df[CONDITION].sum():.0f} | "
           f"Test: {test_df[CONDITION].sum():.0f}")
 
