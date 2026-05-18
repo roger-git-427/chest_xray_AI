@@ -13,3 +13,7 @@ __pycache__/
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb
+
+# Installers / large binaries
+CursorSetup*.exe
+*.exe
