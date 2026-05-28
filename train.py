@@ -1,16 +1,16 @@
 # ── train.py ──────────────────────────────────────────────
 # Main training script. Run from terminal:
-# python train.py
+#   python train.py --condition Effusion
+#   python train.py --condition Cardiomegaly
 
+import argparse
 import os
 import torch
 from sklearn.metrics import roc_auc_score
 from tqdm import tqdm
 
-from config import (
-    NUM_EPOCHS, DEVICE,
-    CHECKPOINT_PATH, BEST_MODEL_PATH
-)
+import config
+from config import NUM_EPOCHS, DEVICE, set_active_condition
 from utils import set_seed, ensure_dirs
 from dataset import load_data, make_loaders
 from model import build_model, build_criterion, build_optimizer, build_scheduler
@@ -27,16 +27,16 @@ def save_checkpoint(
         'best_val_loss':   best_val_loss,
         'best_val_auc':    best_val_auc,
         'val_auc':         val_auc
-    }, CHECKPOINT_PATH)
+    }, config.CHECKPOINT_PATH)
 
 
 def load_checkpoint(model, optimizer, scheduler):
-    if not os.path.exists(CHECKPOINT_PATH):
+    if not os.path.exists(config.CHECKPOINT_PATH):
         print("Starting fresh training.")
         return 0, float('inf'), float('-inf')
 
     print("Resuming from checkpoint...")
-    ckpt = torch.load(CHECKPOINT_PATH, map_location=DEVICE)
+    ckpt = torch.load(config.CHECKPOINT_PATH, map_location=DEVICE)
     model.load_state_dict(ckpt['model_state'])
     optimizer.load_state_dict(ckpt['optimizer_state'])
     scheduler.load_state_dict(ckpt['scheduler_state'])
@@ -97,7 +97,23 @@ def val_epoch(model, loader, criterion):
     return val_loss, val_auc
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description='Train chest X-ray classifier')
+    parser.add_argument(
+        '--condition',
+        default=config.CONDITION,
+        help='Finding to predict (default: config.CONDITION)',
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
+    set_active_condition(args.condition)
+    print(f"Training: {config.CONDITION}")
+    print(f"  Checkpoint: {config.CHECKPOINT_PATH}")
+    print(f"  Best model: {config.BEST_MODEL_PATH}")
+
     set_seed()
     ensure_dirs()
 
@@ -134,7 +150,7 @@ def main():
 
         if improved_auc:
             best_val_auc = val_auc
-            torch.save(model.state_dict(), BEST_MODEL_PATH)
+            torch.save(model.state_dict(), config.BEST_MODEL_PATH)
 
         best_val_loss = min(best_val_loss, val_loss)
         save_checkpoint(

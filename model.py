@@ -1,6 +1,6 @@
 # ── model.py ──────────────────────────────────────────────
 # Model, loss, optimizer, and scheduler setup.
-from config import CONDITION
+import config
 import torch
 import torch.nn as nn
 import timm
@@ -20,7 +20,7 @@ def build_model():
 
 
 def build_criterion(train_df):
-    pos_count  = train_df[CONDITION].sum()
+    pos_count  = train_df[config.CONDITION].sum()
     neg_count  = len(train_df) - pos_count
     pos_weight = torch.tensor(
         [neg_count / pos_count],

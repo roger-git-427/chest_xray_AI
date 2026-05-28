@@ -1,0 +1,40 @@
+/**
+ * Spanish UI copy only. Code, APIs, and config use English identifiers.
+ */
+export const es = {
+  appTitle: 'Tamizaje de radiografía de tórax',
+  appSubtitle: 'Herramienta de apoyo — no constituye un diagnóstico médico',
+  sidebarTitle: 'Configuración',
+  conditionsLabel: 'Condiciones a evaluar',
+  noModels: 'No hay modelos entrenados disponibles.',
+  thresholdLabel: 'Umbral de revisión',
+  tabFolder: 'Desde carpeta',
+  tabUpload: 'Subir archivo',
+  folderLabel: 'Carpeta de imágenes',
+  filterLabel: 'Filtrar por nombre',
+  filterPlaceholder: 'ej. 00000011',
+  selectImage: 'Seleccionar imagen',
+  noImagesInFolder:
+    'No hay imágenes en la carpeta (o la carpeta no existe). Ajuste la ruta o el filtro.',
+  listTruncated: 'Se muestran las primeras {n} coincidencias; acote el filtro.',
+  uploadTitle: 'Cargar radiografía',
+  uploadHint: 'Arrastre un archivo PNG o JPG, o haga clic para seleccionar',
+  uploadButton: 'Seleccionar imagen',
+  runScreening: 'Ejecutar tamizaje',
+  running: 'Analizando…',
+  previewEmpty: 'La imagen seleccionada aparecerá aquí',
+  resultsTitle: 'Resultados',
+  resultsEmpty: 'Cargue una imagen y ejecute el tamizaje para ver resultados.',
+  overallReview: 'Revisión recomendada',
+  overallRoutine: 'Sin hallazgos por encima del umbral',
+  probability: 'Probabilidad del modelo',
+  flagged: 'Marcado para revisión',
+  notFlagged: 'Por debajo del umbral',
+  modelSignal: 'Señal del modelo — no es un diagnóstico',
+  source: 'Origen',
+  disclaimer:
+    'Aviso: tamizaje preliminar únicamente. Todos los resultados deben ser revisados por un médico calificado.',
+  errorLoadConditions: 'No se pudo conectar con el servidor.',
+  errorScreening: 'Error durante el análisis.',
+  unavailable: '(modelo no disponible)',
+} as const;

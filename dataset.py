@@ -1,7 +1,7 @@
 # ── dataset.py ────────────────────────────────────────────
 # Dataset class, transforms, and data loading.
 
-from config import CONDITION
+import config
 import os
 import numpy as np
 import pandas as pd
@@ -44,7 +44,7 @@ class ChestXrayDataset(Dataset):
         if self.transform:
             image = self.transform(image)
 
-        label = torch.tensor(row[CONDITION], dtype=torch.float32)
+        label = torch.tensor(row[config.CONDITION], dtype=torch.float32)
         return image, label
 
 
@@ -73,10 +73,11 @@ val_transform = transforms.Compose([
 def load_data():
     df = pd.read_csv(CSV_PATH)
 
-    df[CONDITION] = df['Finding Labels'].apply(
-    lambda x: 1.0 if CONDITION in x else 0.0
+    cond = config.CONDITION
+    df[cond] = df['Finding Labels'].apply(
+        lambda x: 1.0 if cond in x else 0.0
     )
-    df = df[['Image Index', CONDITION]]
+    df = df[['Image Index', cond]]
 
     available = set(os.listdir(IMAGE_DIR))
     df = df[df['Image Index'].isin(available)].reset_index(drop=True)
@@ -94,13 +95,13 @@ def load_data():
         train_val_df,
         test_size=0.1,
         random_state=SEED,
-        stratify=train_val_df[CONDITION]
+        stratify=train_val_df[cond]
     )
 
     print(f"Train: {len(train_df)} | Val: {len(val_df)} | Test: {len(test_df)}")
-    print(f"{CONDITION} — Train: {train_df[CONDITION].sum():.0f} | "
-          f"Val: {val_df[CONDITION].sum():.0f} | "
-          f"Test: {test_df[CONDITION].sum():.0f}")
+    print(f"{cond} — Train: {train_df[cond].sum():.0f} | "
+          f"Val: {val_df[cond].sum():.0f} | "
+          f"Test: {test_df[cond].sum():.0f}")
 
     return train_df, val_df, test_df
 

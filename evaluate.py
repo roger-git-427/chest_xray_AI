@@ -1,10 +1,14 @@
 # ── evaluate.py ───────────────────────────────────────────
+#   python evaluate.py --condition Effusion
+
+import argparse
 import numpy as np
 import torch
 from sklearn.metrics import roc_auc_score, confusion_matrix
 from tqdm import tqdm
 
-from config import DEVICE, BEST_MODEL_PATH, CONDITION
+import config
+from config import DEVICE, set_active_condition
 from utils import set_seed
 from dataset import load_data, make_loaders
 from model import build_model
@@ -16,7 +20,7 @@ def evaluate(model, loader):
     all_labels = []
 
     with torch.no_grad():
-        for images, labels in tqdm(loader, desc=f"Evaluating {CONDITION}"):
+        for images, labels in tqdm(loader, desc=f"Evaluating {config.CONDITION}"):
             images = images.to(DEVICE)
             logits = model(images)
             probs  = torch.sigmoid(logits).cpu().numpy()
@@ -26,20 +30,36 @@ def evaluate(model, loader):
     return np.array(all_probs), np.array(all_labels)
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description='Evaluate chest X-ray classifier')
+    parser.add_argument(
+        '--condition',
+        default=config.CONDITION,
+        help='Finding to evaluate (default: config.CONDITION)',
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
+    set_active_condition(args.condition)
+    print(f"Evaluating: {config.CONDITION}")
+
     set_seed()
 
     train_df, val_df, test_df = load_data()
     _, _, test_loader = make_loaders(train_df, val_df, test_df)
 
     model = build_model()
-    model.load_state_dict(torch.load(BEST_MODEL_PATH, map_location=DEVICE))
-    print(f"Loaded: {BEST_MODEL_PATH}")
+    model.load_state_dict(
+        torch.load(config.BEST_MODEL_PATH, map_location=DEVICE, weights_only=True)
+    )
+    print(f"Loaded: {config.BEST_MODEL_PATH}")
 
     probs, labels = evaluate(model, test_loader)
 
     auc = roc_auc_score(labels, probs)
-    print(f"\n{CONDITION} Test AUC: {auc:.4f}")
+    print(f"\n{config.CONDITION} Test AUC: {auc:.4f}")
 
     print(f"\nPrediction distribution:")
     print(f"  Min:  {probs.min():.4f}")

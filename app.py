@@ -1,3 +1,4 @@
+# Deprecated: use the React UI + FastAPI backend instead (see README-WEB.md).
 # Run:  streamlit run app.py
 # Or:   python app.py   (re-launches via Streamlit automatically)
 
@@ -7,7 +8,13 @@ from pathlib import Path
 import streamlit as st
 from PIL import Image
 
-from config import BEST_MODEL_PATH, IMAGE_DIR, condition_label_es
+from config import (
+    IMAGE_DIR,
+    available_screening_conditions,
+    best_model_path,
+    condition_label_es,
+    review_threshold,
+)
 
 MAX_LIST = 500
 
@@ -31,18 +38,42 @@ def list_images(folder, query):
     return sorted(names)[:MAX_LIST]
 
 
-def show_result(result, label):
+def run_screening(image, conditions):
+    from inference import predict_image
+
+    results = []
+    for condition in conditions:
+        weights = best_model_path(condition)
+        if not Path(weights).is_file():
+            continue
+        model = get_model(weights)
+        results.append(predict_image(image, model, condition=condition))
+    return results
+
+
+def show_result(result):
     prob = result['probability']
-    st.metric(f"Probabilidad de {result['condition_label']}", f'{prob:.1%}')
+    label = result['condition_label']
+    st.subheader(label)
+    st.metric(f'Probabilidad de {label}', f'{prob:.1%}')
     if result['flagged']:
         st.warning(
-            f'Marcado para revisión (por encima del umbral del {result["threshold"]:.0%}). '
+            f'Marcado para revisión (umbral {result["threshold"]:.0%}). '
             f'{result["recommendation"]}.'
         )
     else:
-        st.success(f'Por debajo del umbral. {result["recommendation"]}.')
-    st.caption(f'Origen: {label}')
+        st.success(f'Por debajo del umbral ({result["threshold"]:.0%}). '
+                   f'{result["recommendation"]}.')
     st.divider()
+
+
+def show_results(results, source_label):
+    if not results:
+        st.error('No hay modelos cargados para las condiciones seleccionadas.')
+        return
+    for result in results:
+        show_result(result)
+    st.caption(f'Origen: {source_label}')
     st.caption(
         'Aviso: herramienta de tamizaje preliminar únicamente. '
         'Todos los resultados deben ser revisados por un médico calificado.'
@@ -50,18 +81,33 @@ def show_result(result, label):
 
 
 def run():
-    label = condition_label_es()
-    st.set_page_config(page_title=f'Tamizaje: {label}', layout='wide')
-    st.title(f'Radiografía de tórax: {label}')
+    st.set_page_config(page_title='Tamizaje de tórax', layout='wide')
+    st.title('Radiografía de tórax — tamizaje')
     st.caption('Solo tamizaje preliminar. No constituye un diagnóstico médico.')
 
-    weights = st.sidebar.text_input('Pesos del modelo:', BEST_MODEL_PATH)
-    if not Path(weights).is_file():
+    trained = available_screening_conditions()
+    if not trained:
         st.error(
-            f'No se encontraron los pesos: `{weights}`. '
-            'Entrene el modelo primero o corrija la ruta.'
+            'No se encontraron modelos entrenados en `checkpoints/`. '
+            'Entrene al menos una condición (p. ej. `python train.py --condition Effusion`).'
         )
         return
+
+    selected = st.sidebar.multiselect(
+        'Condiciones a evaluar:',
+        trained,
+        default=trained,
+        format_func=condition_label_es,
+    )
+    if not selected:
+        st.warning('Seleccione al menos una condición en la barra lateral.')
+        return
+
+    st.sidebar.markdown('**Umbrales de revisión**')
+    for condition in selected:
+        st.sidebar.caption(
+            f'{condition_label_es(condition)}: {review_threshold(condition):.0%}'
+        )
 
     tab_folder, tab_upload = st.tabs(['Desde carpeta', 'Subir archivo'])
 
@@ -90,10 +136,7 @@ def run():
         with col_res:
             if st.button('Ejecutar tamizaje', key='run_folder'):
                 try:
-                    model = get_model(weights)
-                    from inference import predict_image
-                    result = predict_image(path, model)
-                    show_result(result, str(path))
+                    show_results(run_screening(path, selected), str(path))
                 except Exception as e:
                     st.error(f'Error en la inferencia: {e}')
 
@@ -111,10 +154,7 @@ def run():
         with col_res:
             if st.button('Ejecutar tamizaje', key='run_upload'):
                 try:
-                    model = get_model(weights)
-                    from inference import predict_image
-                    result = predict_image(image, model)
-                    show_result(result, uploaded.name)
+                    show_results(run_screening(image, selected), uploaded.name)
                 except Exception as e:
                     st.error(f'Error en la inferencia: {e}')
 

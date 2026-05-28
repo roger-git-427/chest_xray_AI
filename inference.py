@@ -7,14 +7,15 @@ from pathlib import Path
 import torch
 from PIL import Image
 
-from config import CONDITION, DEVICE, BEST_MODEL_PATH, condition_label_es
+import config
+from config import DEVICE, condition_label_es, review_threshold
 from dataset import val_transform
 from model import build_model
 
-REVIEW_THRESHOLD = 0.3
 
-
-def load_model(weights_path=BEST_MODEL_PATH):
+def load_model(weights_path=None):
+    if weights_path is None:
+        weights_path = config.BEST_MODEL_PATH
     model = build_model()
     model.load_state_dict(
         torch.load(weights_path, map_location=DEVICE, weights_only=True)
@@ -23,8 +24,9 @@ def load_model(weights_path=BEST_MODEL_PATH):
     return model
 
 
-def predict_image(image, model):
+def predict_image(image, model, condition=None):
     """image: path (str | Path) or PIL.Image. Returns result dict."""
+    condition = condition or config.CONDITION
     if isinstance(image, (str, Path)):
         image = Image.open(image).convert('RGB')
     else:
@@ -34,12 +36,13 @@ def predict_image(image, model):
     with torch.no_grad():
         prob = torch.sigmoid(model(tensor)).item()
 
-    flagged = prob >= REVIEW_THRESHOLD
+    threshold = review_threshold(condition)
+    flagged = prob >= threshold
     return {
-        'condition': CONDITION,
-        'condition_label': condition_label_es(),
+        'condition': condition,
+        'condition_label': condition_label_es(condition),
         'probability': prob,
-        'threshold': REVIEW_THRESHOLD,
+        'threshold': threshold,
         'flagged': flagged,
         'recommendation': (
             'Derivar a radiólogo para confirmación'
@@ -66,20 +69,33 @@ def print_result(image_path, result):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description=f'Tamizaje de radiografía — {condition_label_es()}'
-    )
+    parser = argparse.ArgumentParser(description='Tamizaje de radiografía de tórax')
     parser.add_argument(
         '--image', type=str, required=True, help='Ruta a la radiografía'
     )
     parser.add_argument(
-        '--model', type=str, default=BEST_MODEL_PATH, help='Ruta a los pesos del modelo'
+        '--condition',
+        default=config.CONDITION,
+        help='Finding to screen for',
+    )
+    parser.add_argument(
+        '--model',
+        type=str,
+        default=None,
+        help='Ruta a los pesos (default: best model for --condition)',
     )
     args = parser.parse_args()
 
-    model = load_model(args.model)
-    print(f"Modelo cargado desde {args.model}")
-    print_result(args.image, predict_image(args.image, model))
+    from config import set_active_condition, best_model_path
+    set_active_condition(args.condition)
+    weights = args.model or best_model_path(args.condition)
+
+    model = load_model(weights)
+    print(f"Modelo cargado desde {weights} ({args.condition})")
+    print_result(
+        args.image,
+        predict_image(args.image, model, condition=args.condition),
+    )
 
 
 if __name__ == '__main__':

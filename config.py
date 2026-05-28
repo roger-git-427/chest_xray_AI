@@ -3,19 +3,41 @@
 # Change settings here — nothing else needs editing.
 
 import torch
+from pathlib import Path
 
 # ── Paths ─────────────────────────────────────────────────
+PROJECT_ROOT = Path(__file__).resolve().parent
 IMAGE_DIR  = 'data/images/images'
 CSV_PATH   = 'data/Data_Entry_2017_v2020.csv'
 TRAIN_TXT  = 'data/train_val_list.txt'
 TEST_TXT   = 'data/test_list.txt'
 
-# ── Checkpoints  and Conditions ───────────────────────────────────────────
+# ── Checkpoints and conditions ────────────────────────────────────────────
+# Each condition writes to its own files (e.g. best_model_effusion.pth).
+# Train: python train.py --condition Effusion
+# Eval:  python evaluate.py --condition Effusion
 
-#### Cardiomegaly ####
-CONDITION    = 'Cardiomegaly'
-CHECKPOINT_PATH = f'checkpoints/checkpoint_{CONDITION.lower()}.pth'
-BEST_MODEL_PATH = f'checkpoints/best_model_{CONDITION.lower()}.pth'
+CONDITION = 'Effusion'
+
+
+def checkpoint_path(condition):
+    return f'checkpoints/checkpoint_{condition.lower()}.pth'
+
+
+def best_model_path(condition):
+    return f'checkpoints/best_model_{condition.lower()}.pth'
+
+
+def set_active_condition(condition):
+    """Switch target disease for train / eval / inference."""
+    global CONDITION, CHECKPOINT_PATH, BEST_MODEL_PATH
+    CONDITION = condition
+    CHECKPOINT_PATH = checkpoint_path(condition)
+    BEST_MODEL_PATH = best_model_path(condition)
+
+
+CHECKPOINT_PATH = checkpoint_path(CONDITION)
+BEST_MODEL_PATH = best_model_path(CONDITION)
 
 # Spanish labels for UI only (CONDITION stays English for data/code)
 CONDITION_LABEL_ES = {
@@ -39,6 +61,30 @@ CONDITION_LABEL_ES = {
 def condition_label_es(condition=None):
     condition = condition or CONDITION
     return CONDITION_LABEL_ES.get(condition, condition.replace('_', ' '))
+
+
+# Screening flag thresholds (tune on validation; locked per condition)
+DEFAULT_REVIEW_THRESHOLD = 0.3
+REVIEW_THRESHOLDS = {
+    'Cardiomegaly': 0.3,
+    'Effusion': 0.4,
+}
+
+
+def review_threshold(condition=None):
+    condition = condition or CONDITION
+    return REVIEW_THRESHOLDS.get(condition, DEFAULT_REVIEW_THRESHOLD)
+
+
+# Conditions exposed in the web UI (order preserved; needs best_model_<condition>.pth)
+SCREENING_CONDITIONS = ['Cardiomegaly', 'Effusion']
+
+
+def available_screening_conditions():
+    return [
+        c for c in SCREENING_CONDITIONS
+        if Path(best_model_path(c)).is_file()
+    ]
 
 # ── Training ──────────────────────────────────────────────
 SEED       = 42

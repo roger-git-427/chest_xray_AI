@@ -1,14 +1,30 @@
-# Data
+# Data and model artifacts (too large for git)
 data/
-
-# Checkpoints
 checkpoints/
+*.pth
+*.tar.gz
+*.safetensors
 
 # Python
 venv/
+.venv/
 __pycache__/
-*.pth
-*.tar.gz
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Frontend build deps
+frontend/node_modules/
+frontend/dist/
+
+# Environment and IDE
+.env
+.env.*
+!.env.example
+.DS_Store
+.idea/
+.vscode/
 
 # Jupyter
 .ipynb_checkpoints/
