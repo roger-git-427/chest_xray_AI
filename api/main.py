@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title='Chest X-ray Screening API',
+    title='ByteAI Screening API',
     description='Preliminary screening only — not a medical diagnosis.',
     lifespan=lifespan,
 )

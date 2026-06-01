@@ -1,6 +1,6 @@
-# Web UI (React + FastAPI)
+# ByteAI — Web UI (React + FastAPI)
 
-Professional screening interface. **Code and APIs are in English**; **user-facing labels are in Spanish** (`frontend/src/i18n/es.ts`).
+Professional screening interface for **ByteAI**. **Code and APIs are in English**; **user-facing labels are in Spanish** (`frontend/src/i18n/es.ts`).
 
 ## Prerequisites
 
@@ -17,8 +17,10 @@ cd frontend && npm install
 **Terminal 1 — API** (from project root):
 
 ```bash
-uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
+.\.venv\Scripts\python -m uvicorn api.main:app --reload --host 127.0.0.1 --port 8001
 ```
+
+Use port **8001** in development (port 8000 is often taken on Windows). Vite proxies `/api` to `http://127.0.0.1:8001` (see `frontend/vite.config.ts`).
 
 **Terminal 2 — frontend**:
 
@@ -26,7 +28,7 @@ uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
 cd frontend && npm run dev
 ```
 
-Open http://localhost:5173 — Vite proxies `/api` to the backend.
+Open http://localhost:5173 — Vite proxies `/api` to the backend on port 8001.
 
 **Folder tab:** browse `data/images/images` (default), filter by filename, pick an image, run screening without uploading.
 
@@ -36,10 +38,11 @@ Open http://localhost:5173 — Vite proxies `/api` to the backend.
 
 ```bash
 cd frontend && npm run build
-cd .. && uvicorn api.main:app --host 0.0.0.0 --port 8000
+cd ..
+.\.venv\Scripts\python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
 ```
 
-Open http://localhost:8000 — FastAPI serves the built UI and `/api/*`.
+Open http://localhost:8000 — FastAPI serves the built UI and `/api/*`. (Development uses port **8001** because Vite proxies to that port; production can use any free port.)
 
 ## Add a new trained condition
 

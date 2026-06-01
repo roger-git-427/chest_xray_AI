@@ -27,7 +27,7 @@ def save_checkpoint(
         'best_val_loss':   best_val_loss,
         'best_val_auc':    best_val_auc,
         'val_auc':         val_auc
-    }, config.CHECKPOINT_PATH)
+    }, config.CHECKPOINT_PATH, _use_new_zipfile_serialization=False)
 
 
 def load_checkpoint(model, optimizer, scheduler):
@@ -150,7 +150,11 @@ def main():
 
         if improved_auc:
             best_val_auc = val_auc
-            torch.save(model.state_dict(), config.BEST_MODEL_PATH)
+            torch.save(
+                model.state_dict(),
+                config.BEST_MODEL_PATH,
+                _use_new_zipfile_serialization=False,
+            )
 
         best_val_loss = min(best_val_loss, val_loss)
         save_checkpoint(

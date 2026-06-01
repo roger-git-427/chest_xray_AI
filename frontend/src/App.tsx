@@ -1,342 +1,369 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  fetchConditions,
-  fetchImageList,
-  fetchSettings,
-  imageContentUrl,
-  screenImage,
-  screenImageFromPath,
-  type ConditionInfo,
-  type ScreeningResponse,
-} from './api/client';
-import { ResultsPanel } from './components/ResultsPanel';
+import { useCallback, useEffect, useState } from 'react';
+import { AuthGate } from './components/auth/AuthGate';
+import { AppHeader } from './components/layout/AppHeader';
+import { ConditionsRail } from './components/layout/ConditionsRail';
+import { MobileNav, type MobilePanel } from './components/layout/MobileNav';
+import { StudyTimeline } from './components/layout/StudyTimeline';
+import { WorkflowBar } from './components/layout/WorkflowBar';
+import { ResultsDashboard } from './components/results/ResultsDashboard';
+import { BatchScreeningPanel } from './components/workspace/BatchScreeningPanel';
+import { FolderWorkspace } from './components/workspace/FolderWorkspace';
+import { ImagingViewport } from './components/workspace/ImagingViewport';
+import { UploadWorkspace } from './components/workspace/UploadWorkspace';
+import { generateScreeningPdf } from './lib/generateScreeningPdf';
+import { useBatchScreening } from './hooks/useBatchScreening';
+import { useStudyTimeline } from './hooks/useStudyTimeline';
+import type { TimelineEntry } from './hooks/useStudyTimeline';
+import { useScreening } from './hooks/useScreening';
+import { imageContentUrl, type ScreeningResponse } from './api/client';
 import { es } from './i18n/es';
 
-type Tab = 'folder' | 'upload';
+function ScreeningApp() {
+  const timeline = useStudyTimeline();
+  const batch = useBatchScreening();
+  const s = useScreening(timeline.addEntry);
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>('study');
+  const [activeTimelineId, setActiveTimelineId] = useState<string | null>(null);
+  const [timelineExportError, setTimelineExportError] = useState<string | null>(null);
 
-export default function App() {
-  const [conditions, setConditions] = useState<ConditionInfo[]>([]);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [tab, setTab] = useState<Tab>('folder');
+  const {
+    restoreFromTimeline,
+    applyBatchResult,
+    selectPrevStudy,
+    selectNextStudy,
+    tab,
+    resolvedFolder,
+    imageNames,
+    selected,
+  } = s;
 
-  const [folder, setFolder] = useState('');
-  const [resolvedFolder, setResolvedFolder] = useState('');
-  const [filterQuery, setFilterQuery] = useState('');
-  const [imageNames, setImageNames] = useState<string[]>([]);
-  const [listTruncated, setListTruncated] = useState(false);
-  const [selectedName, setSelectedName] = useState('');
+  const runScreening = async () => {
+    if (tab === 'folder') await s.runFolderScreening();
+    else await s.runUploadScreening();
+    setMobilePanel('results');
+  };
 
-  const [file, setFile] = useState<File | null>(null);
-  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
+  const runBatch = async () => {
+    if (!resolvedFolder || imageNames.length === 0 || selected.length === 0) return;
+    batch.reset();
+    await batch.run(resolvedFolder, imageNames, selected, (filename, response) => {
+      timeline.addEntry(filename, response, {
+        tab: 'folder',
+        folder: resolvedFolder,
+        filename,
+        imageUrl: imageContentUrl(resolvedFolder, filename),
+      });
+    });
+  };
 
-  const [loading, setLoading] = useState(false);
-  const [listLoading, setListLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [response, setResponse] = useState<ScreeningResponse | null>(null);
-
-  useEffect(() => {
-    Promise.all([fetchConditions(), fetchSettings()])
-      .then(([list, settings]) => {
-        setConditions(list);
-        setSelected(list.filter((c) => c.available).map((c) => c.id));
-        setFolder(settings.default_image_dir);
-      })
-      .catch(() => setError(es.errorLoadConditions));
-  }, []);
-
-  useEffect(() => {
-    if (!folder.trim() || tab !== 'folder') return;
-
-    const timer = window.setTimeout(() => {
-      setListLoading(true);
-      fetchImageList(folder.trim(), filterQuery)
-        .then((data) => {
-          setResolvedFolder(data.folder);
-          setImageNames(data.names);
-          setListTruncated(data.truncated);
-          setSelectedName((prev) =>
-            prev && data.names.includes(prev) ? prev : data.names[0] ?? '',
-          );
-        })
-        .catch(() => {
-          setImageNames([]);
-          setSelectedName('');
-          setResolvedFolder('');
-        })
-        .finally(() => setListLoading(false));
-    }, 300);
-
-    return () => window.clearTimeout(timer);
-  }, [folder, filterQuery, tab]);
-
-  const folderPreviewUrl = useMemo(() => {
-    if (!resolvedFolder || !selectedName) return null;
-    return imageContentUrl(resolvedFolder, selectedName);
-  }, [resolvedFolder, selectedName]);
-
-  const onFile = useCallback((f: File | null) => {
-    setFile(f);
-    setResponse(null);
-    if (uploadPreview) URL.revokeObjectURL(uploadPreview);
-    setUploadPreview(f ? URL.createObjectURL(f) : null);
-  }, [uploadPreview]);
-
-  const availableIds = useMemo(
-    () => conditions.filter((c) => c.available).map((c) => c.id),
-    [conditions],
+  const handleTimelineSelect = useCallback(
+    (entry: TimelineEntry) => {
+      restoreFromTimeline(entry);
+      setActiveTimelineId(entry.id);
+      setTimelineExportError(null);
+      setMobilePanel('results');
+    },
+    [restoreFromTimeline],
   );
 
-  const toggleCondition = (id: string) => {
-    setSelected((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  };
-
-  const runUploadScreening = async () => {
-    if (!file || selected.length === 0) return;
-    setLoading(true);
-    setError(null);
+  const handleTimelineExport = useCallback(async (entry: TimelineEntry) => {
+    setTimelineExportError(null);
     try {
-      setResponse(await screenImage(file, selected));
+      const imageUrl =
+        entry.imageUrl ??
+        (entry.tab === 'folder' && entry.folder && entry.filename
+          ? imageContentUrl(entry.folder, entry.filename)
+          : null);
+      await generateScreeningPdf(entry.screeningResponse, {
+        sourceLabel: entry.studyLabel,
+        imageUrl,
+        sourceKind: entry.tab === 'folder' ? es.pdfSourceFolder : es.pdfSourceUpload,
+        screenedAt: entry.at,
+      });
     } catch {
-      setError(es.errorScreening);
-    } finally {
-      setLoading(false);
+      setTimelineExportError(es.errorTimelineExport);
     }
+  }, []);
+
+  const handleBatchOpen = useCallback(
+    (row: { filename: string; response?: ScreeningResponse }) => {
+      if (!row.response || !resolvedFolder) return;
+      applyBatchResult(resolvedFolder, row.filename, row.response);
+      setActiveTimelineId(null);
+      setMobilePanel('results');
+    },
+    [applyBatchResult, resolvedFolder],
+  );
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (target?.isContentEditable) return;
+      if (tab !== 'folder' || batch.running) return;
+
+      if (e.key === 'ArrowDown' || e.key === 'j') {
+        e.preventDefault();
+        selectNextStudy();
+      } else if (e.key === 'ArrowUp' || e.key === 'k') {
+        e.preventDefault();
+        selectPrevStudy();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [tab, batch.running, selectNextStudy, selectPrevStudy]);
+
+  const folderStudyNav = tab === 'folder';
+
+  const viewportProps = {
+    imageUrl: s.previewUrl,
+    studyId: s.sourceLabel ?? undefined,
+    loading: s.loading || batch.running,
+    sourceKind: s.pdfSourceLabel,
+    screenedAt: s.screenedAt,
+    onPrevStudy: folderStudyNav ? selectPrevStudy : undefined,
+    onNextStudy: folderStudyNav ? selectNextStudy : undefined,
+    canPrevStudy: folderStudyNav && s.canPrevStudy,
+    canNextStudy: folderStudyNav && s.canNextStudy,
   };
 
-  const runFolderScreening = async () => {
-    if (!resolvedFolder || !selectedName || selected.length === 0) return;
-    setLoading(true);
-    setError(null);
-    try {
-      setResponse(
-        await screenImageFromPath(resolvedFolder, selectedName, selected),
-      );
-    } catch {
-      setError(es.errorScreening);
-    } finally {
-      setLoading(false);
-    }
+  const resultsProps = {
+    response: s.response,
+    sourceLabel: s.sourceLabel,
+    imageUrl: s.previewUrl,
+    sourceKind: s.pdfSourceLabel,
+    screenedAt: s.screenedAt ?? undefined,
   };
 
-  const previewUrl = tab === 'folder' ? folderPreviewUrl : uploadPreview;
-  const sourceLabel =
-    response?.filename ??
-    (tab === 'folder' && selectedName
-      ? `${resolvedFolder}/${selectedName}`
-      : file?.name);
+  const timelineProps = {
+    entries: timeline.entries,
+    onClear: () => {
+      timeline.clear();
+      setActiveTimelineId(null);
+    },
+    onSelect: handleTimelineSelect,
+    onExport: handleTimelineExport,
+    activeId: activeTimelineId,
+    exportError: timelineExportError,
+  };
 
-  return (
-    <div className="min-h-screen bg-slate-100 text-slate-900">
-      <header className="border-b border-slate-200 bg-white shadow-sm">
-        <div className="mx-auto max-w-6xl px-6 py-5">
-          <h1 className="text-2xl font-bold tracking-tight text-clinical-900">
-            {es.appTitle}
-          </h1>
-          <p className="mt-1 text-sm text-slate-600">{es.appSubtitle}</p>
+  const studyPanel = (
+    <div className="pro-panel flex flex-col">
+      <div className="pro-panel-header flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+        <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+          {es.stepSource}
+        </h2>
+        <div className="pro-seg">
+          <button
+            type="button"
+            onClick={() => s.setTab('folder')}
+            className={`pro-seg-btn ${s.tab === 'folder' ? 'pro-seg-btn-active' : ''}`}
+          >
+            {es.tabFolder}
+          </button>
+          <button
+            type="button"
+            onClick={() => s.setTab('upload')}
+            className={`pro-seg-btn ${s.tab === 'upload' ? 'pro-seg-btn-active' : ''}`}
+          >
+            {es.tabUpload}
+          </button>
         </div>
-      </header>
-
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6 lg:flex-row">
-        <aside className="w-full shrink-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:w-72">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            {es.sidebarTitle}
-          </h2>
-          <p className="mt-4 text-sm font-medium text-slate-700">
-            {es.conditionsLabel}
+      </div>
+      <div className="pro-panel-body flex flex-1 flex-col">
+        {s.tab === 'folder' ? (
+          <>
+            <FolderWorkspace
+              folder={s.folder}
+              onFolderChange={s.setFolder}
+              filterQuery={s.filterQuery}
+              onFilterChange={s.setFilterQuery}
+              imageNames={s.imageNames}
+              selectedName={s.selectedName}
+              onSelectStudy={(name) => {
+                s.selectStudy(name);
+                setMobilePanel('viewer');
+              }}
+              listLoading={s.listLoading}
+              listTruncated={s.listTruncated}
+              onPrevStudy={selectPrevStudy}
+              onNextStudy={selectNextStudy}
+              canPrevStudy={s.canPrevStudy}
+              canNextStudy={s.canNextStudy}
+              flaggedStudyName={
+                s.response?.overall_flagged ? s.selectedName : undefined
+              }
+            />
+            <label className="mt-4 flex cursor-pointer items-center gap-2 text-xs text-[var(--text-muted)]">
+              <input
+                type="checkbox"
+                checked={s.autoAdvance}
+                onChange={(e) => s.setAutoAdvance(e.target.checked)}
+                className="rounded border-[var(--border-subtle)]"
+              />
+              {es.autoAdvanceLabel}
+            </label>
+            <button
+              type="button"
+              disabled={
+                batch.running ||
+                !resolvedFolder ||
+                imageNames.length === 0 ||
+                selected.length === 0
+              }
+              onClick={runBatch}
+              className="pro-btn-secondary mt-3 w-full"
+            >
+              {batch.running ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-teal-500/30 border-t-teal-400" />
+                  {es.batchRunning}
+                </>
+              ) : (
+                es.batchScreenFolder
+              )}
+            </button>
+            <BatchScreeningPanel
+              rows={batch.rows}
+              running={batch.running}
+              current={batch.current}
+              total={batch.total}
+              onCancel={batch.cancel}
+              onOpenRow={handleBatchOpen}
+            />
+          </>
+        ) : (
+          <UploadWorkspace file={s.file} onFile={s.onFile} />
+        )}
+        {s.tab === 'upload' && s.response && !s.previewUrl && (
+          <p className="mt-3 text-xs text-amber-600 dark:text-amber-400/90">
+            {es.uploadRestoreNoPreview}
           </p>
-          <ul className="mt-3 space-y-2">
-            {conditions.map((c) => (
-              <li key={c.id}>
-                <label
-                  className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 hover:bg-slate-50 ${
-                    !c.available ? 'opacity-50' : ''
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(c.id)}
-                    disabled={!c.available}
-                    onChange={() => toggleCondition(c.id)}
-                    className="rounded border-slate-300"
-                  />
-                  <span className="text-sm">
-                    {c.label}
-                    {!c.available && (
-                      <span className="text-slate-400"> {es.unavailable}</span>
-                    )}
-                  </span>
-                </label>
-                {c.available && (
-                  <p className="ml-7 text-xs text-slate-500">
-                    {es.thresholdLabel}: {Math.round(c.threshold * 100)}%
-                  </p>
-                )}
-              </li>
-            ))}
-          </ul>
-          {availableIds.length === 0 && (
-            <p className="mt-3 text-sm text-red-600">{es.noModels}</p>
-          )}
-        </aside>
-
-        <main className="flex min-w-0 flex-1 flex-col gap-6">
-          <div className="flex gap-2 border-b border-slate-200">
-            <button
-              type="button"
-              onClick={() => setTab('folder')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-                tab === 'folder'
-                  ? 'border-clinical-600 text-clinical-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {es.tabFolder}
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('upload')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-                tab === 'upload'
-                  ? 'border-clinical-600 text-clinical-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {es.tabUpload}
-            </button>
-          </div>
-
-          <section className="grid gap-6 lg:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              {tab === 'folder' ? (
-                <>
-                  <label className="block text-sm font-medium text-slate-700">
-                    {es.folderLabel}
-                  </label>
-                  <input
-                    type="text"
-                    value={folder}
-                    onChange={(e) => setFolder(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  />
-                  <label className="mt-4 block text-sm font-medium text-slate-700">
-                    {es.filterLabel}
-                  </label>
-                  <input
-                    type="text"
-                    value={filterQuery}
-                    onChange={(e) => setFilterQuery(e.target.value)}
-                    placeholder={es.filterPlaceholder}
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  />
-                  {listLoading ? (
-                    <p className="mt-4 text-sm text-slate-500">{es.running}</p>
-                  ) : imageNames.length === 0 ? (
-                    <p className="mt-4 text-sm text-slate-500">
-                      {es.noImagesInFolder}
-                    </p>
-                  ) : (
-                    <>
-                      {listTruncated && (
-                        <p className="mt-3 text-xs text-slate-500">
-                          {es.listTruncated.replace('{n}', '500')}
-                        </p>
-                      )}
-                      <label className="mt-4 block text-sm font-medium text-slate-700">
-                        {es.selectImage}
-                      </label>
-                      <select
-                        value={selectedName}
-                        onChange={(e) => {
-                          setSelectedName(e.target.value);
-                          setResponse(null);
-                        }}
-                        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                        size={8}
-                      >
-                        {imageNames.map((name) => (
-                          <option key={name} value={name}>
-                            {name}
-                          </option>
-                        ))}
-                      </select>
-                    </>
-                  )}
-                  <button
-                    type="button"
-                    disabled={
-                      !selectedName ||
-                      selected.length === 0 ||
-                      loading ||
-                      listLoading
-                    }
-                    onClick={runFolderScreening}
-                    className="mt-4 w-full rounded-xl bg-clinical-600 py-3 text-sm font-semibold text-white shadow hover:bg-clinical-800 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {loading ? es.running : es.runScreening}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <h2 className="text-lg font-semibold">{es.uploadTitle}</h2>
-                  <p className="mt-1 text-sm text-slate-500">{es.uploadHint}</p>
-                  <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-10 transition hover:border-clinical-500 hover:bg-clinical-50">
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg"
-                      className="hidden"
-                      onChange={(e) => onFile(e.target.files?.[0] ?? null)}
-                    />
-                    <span className="rounded-lg bg-clinical-600 px-4 py-2 text-sm font-medium text-white">
-                      {es.uploadButton}
-                    </span>
-                    {file && (
-                      <span className="mt-3 text-xs text-slate-600">
-                        {file.name}
-                      </span>
-                    )}
-                  </label>
-                  <button
-                    type="button"
-                    disabled={!file || selected.length === 0 || loading}
-                    onClick={runUploadScreening}
-                    className="mt-4 w-full rounded-xl bg-clinical-600 py-3 text-sm font-semibold text-white shadow hover:bg-clinical-800 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {loading ? es.running : es.runScreening}
-                  </button>
-                </>
-              )}
-              {error && (
-                <p className="mt-3 text-sm text-red-600" role="alert">
-                  {error}
-                </p>
-              )}
-            </div>
-
-            <div className="flex min-h-[320px] items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-black shadow-sm">
-              {previewUrl ? (
-                <img
-                  src={previewUrl}
-                  alt="Radiografía"
-                  className="max-h-[480px] w-full object-contain"
+        )}
+        {s.error && (
+          <p
+            className="mt-4 rounded-lg border border-red-500/30 bg-red-950/40 px-3 py-2.5 text-sm text-red-400"
+            role="alert"
+          >
+            {s.error}
+          </p>
+        )}
+        <button
+          type="button"
+          disabled={!s.canRun || batch.running}
+          onClick={runScreening}
+          className="pro-btn-primary mt-6"
+        >
+          {s.loading ? (
+            <>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-teal-950/30 border-t-teal-950" />
+              {es.running}
+            </>
+          ) : (
+            <>
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
                 />
-              ) : (
-                <p className="text-sm text-slate-500">{es.previewEmpty}</p>
-              )}
-            </div>
-          </section>
-
-          <ResultsPanel
-            response={response}
-            sourceLabel={sourceLabel}
-          />
-
-          <footer className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-            {es.disclaimer}
-          </footer>
-        </main>
+              </svg>
+              {es.runScreening}
+            </>
+          )}
+        </button>
       </div>
     </div>
+  );
+
+  return (
+    <div className="pro-shell pb-24 lg:pb-0">
+      <AppHeader
+        modelsActive={s.availableCount}
+        overallFlagged={Boolean(s.response?.overall_flagged)}
+      />
+
+      <div className="relative z-10 mx-auto max-w-[1600px] px-4 py-4 sm:py-6 lg:px-8">
+        <div className="mb-4 animate-in sm:mb-6">
+          <WorkflowBar step={s.workflowStep} />
+        </div>
+
+        {/* Laptop (lg): sidebar | study → viewport → informe. XL: sidebar | study + viewport | informe */}
+        <div className="pro-desktop-grid hidden lg:grid lg:items-start lg:gap-5 xl:gap-6">
+          <aside className="pro-desktop-sidebar flex min-h-0 flex-col gap-5">
+            <ConditionsRail
+              conditions={s.conditions}
+              selected={s.selected}
+              onToggle={s.toggleCondition}
+            />
+            <StudyTimeline {...timelineProps} compact />
+          </aside>
+
+          <div className="pro-desktop-study min-w-0 animate-in-delay-1">{studyPanel}</div>
+
+          <div className="pro-desktop-viewport min-w-0 animate-in-delay-2">
+            <ImagingViewport {...viewportProps} />
+          </div>
+
+          <div className="pro-desktop-results min-w-0">
+            <ResultsDashboard {...resultsProps} />
+          </div>
+        </div>
+
+        <div className="lg:hidden">
+          {mobilePanel === 'study' && <div className="animate-in">{studyPanel}</div>}
+          {mobilePanel === 'viewer' && <ImagingViewport {...viewportProps} />}
+          {mobilePanel === 'results' && <ResultsDashboard {...resultsProps} />}
+          {mobilePanel === 'protocol' && (
+            <div className="animate-in space-y-4">
+              <ConditionsRail
+                conditions={s.conditions}
+                selected={s.selected}
+                onToggle={s.toggleCondition}
+              />
+              <StudyTimeline {...timelineProps} />
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 lg:mt-6">
+          <footer className="flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-950/30 px-4 py-3 dark:bg-amber-950/40">
+            <svg
+              className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500/80"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z"
+              />
+            </svg>
+            <p className="text-xs leading-relaxed text-amber-900/90 dark:text-amber-100/85">
+              {es.disclaimer}
+            </p>
+          </footer>
+        </div>
+      </div>
+
+      <MobileNav
+        active={mobilePanel}
+        onChange={setMobilePanel}
+        hasResults={Boolean(s.response)}
+      />
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthGate>
+      <ScreeningApp />
+    </AuthGate>
   );
 }
