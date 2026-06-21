@@ -1,4 +1,5 @@
 import type { ConditionInfo } from '../../api/client';
+import { ModelCardPanel } from '../clinical/ModelCardPanel';
 import { es } from '../../i18n/es';
 
 type Props = {
@@ -64,14 +65,17 @@ export function ConditionsRail({ conditions, selected, onToggle }: Props) {
                     </div>
                   </div>
                   {c.available && (
-                    <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-2">
-                      <span className="text-[10px] uppercase tracking-wider text-slate-500">
-                        {es.thresholdLabel}
-                      </span>
-                      <span className="font-mono text-xs font-medium text-teal-400/90">
-                        {Math.round(c.threshold * 100)}%
-                      </span>
-                    </div>
+                    <>
+                      <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-2">
+                        <span className="text-[10px] uppercase tracking-wider text-slate-500">
+                          {es.thresholdLabel}
+                        </span>
+                        <span className="font-mono text-xs font-medium text-teal-400/90">
+                          {Math.round(c.threshold * 100)}%
+                        </span>
+                      </div>
+                      <ModelCardPanel condition={c} />
+                    </>
                   )}
                 </button>
               </li>

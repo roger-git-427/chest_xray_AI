@@ -35,6 +35,7 @@ export function useScreening(
 
   const [file, setFile] = useState<File | null>(null);
   const [uploadPreview, setUploadPreview] = useState<string | null>(null);
+  const [uploadIsDicom, setUploadIsDicom] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [listLoading, setListLoading] = useState(false);
@@ -84,12 +85,21 @@ export function useScreening(
     return imageContentUrl(resolvedFolder, selectedName);
   }, [resolvedFolder, selectedName]);
 
+  const isDicomName = (name: string) => /\.(dcm|dicom)$/i.test(name);
+
   const onFile = useCallback(
     (f: File | null) => {
       setFile(f);
       setResponse(null);
-      if (uploadPreview) URL.revokeObjectURL(uploadPreview);
-      setUploadPreview(f ? URL.createObjectURL(f) : null);
+      if (uploadPreview?.startsWith('blob:')) URL.revokeObjectURL(uploadPreview);
+      if (!f) {
+        setUploadPreview(null);
+        setUploadIsDicom(false);
+        return;
+      }
+      const dicom = isDicomName(f.name);
+      setUploadIsDicom(dicom);
+      setUploadPreview(dicom ? null : URL.createObjectURL(f));
     },
     [uploadPreview],
   );
@@ -140,6 +150,9 @@ export function useScreening(
       setResponse(res);
       setSourceKind(kind);
       setScreenedAt(new Date().toISOString());
+      if (kind === 'upload' && res.preview_data_url) {
+        setUploadPreview(res.preview_data_url);
+      }
       onAnalysisComplete?.(studyLabel, res, {
         tab: kind === 'folder' ? 'folder' : 'upload',
         folder: kind === 'folder' ? resolvedFolder : undefined,
@@ -173,6 +186,7 @@ export function useScreening(
         resolvedFolder,
         selectedName,
         selected,
+        { includeHeatmaps: true },
       );
       completeAnalysis(selectedName, res, 'folder', folderPreviewUrl);
       advanceAfterScreening();
@@ -196,8 +210,9 @@ export function useScreening(
       if (entry.filename) setSelectedName(entry.filename);
     } else if (entry.tab === 'upload') {
       setFile(null);
-      if (uploadPreview) URL.revokeObjectURL(uploadPreview);
-      setUploadPreview(null);
+      if (uploadPreview?.startsWith('blob:')) URL.revokeObjectURL(uploadPreview);
+      setUploadPreview(entry.screeningResponse.preview_data_url ?? null);
+      setUploadIsDicom(Boolean(entry.screeningResponse.is_dicom));
     }
   }, [uploadPreview]);
 
@@ -259,6 +274,7 @@ export function useScreening(
     response,
     availableCount,
     previewUrl,
+    uploadIsDicom,
     sourceLabel,
     pdfSourceLabel,
     screenedAt,

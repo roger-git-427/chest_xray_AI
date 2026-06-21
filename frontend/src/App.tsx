@@ -15,12 +15,15 @@ import { useBatchScreening } from './hooks/useBatchScreening';
 import { useStudyTimeline } from './hooks/useStudyTimeline';
 import type { TimelineEntry } from './hooks/useStudyTimeline';
 import { useScreening } from './hooks/useScreening';
+import { useStudyMeta } from './hooks/useStudyMeta';
+import { useWorklist } from './hooks/useWorklist';
 import { imageContentUrl, type ScreeningResponse } from './api/client';
 import { es } from './i18n/es';
 
 function ScreeningApp() {
   const timeline = useStudyTimeline();
   const batch = useBatchScreening();
+  const worklist = useWorklist();
   const s = useScreening(timeline.addEntry);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>('study');
   const [activeTimelineId, setActiveTimelineId] = useState<string | null>(null);
@@ -37,9 +40,24 @@ function ScreeningApp() {
     selected,
   } = s;
 
+  const studyFilename = tab === 'folder' ? s.selectedName : s.file?.name;
+  const { metadata, priors } = useStudyMeta(studyFilename || undefined);
+  const latestPrior = priors[0];
+  const priorTimelineEntry = latestPrior
+    ? timeline.entries.find(
+        (e) => e.filename === latestPrior.filename || e.studyLabel === latestPrior.filename,
+      )
+    : undefined;
+  const priorImageUrl =
+    tab === 'folder' && resolvedFolder && latestPrior
+      ? imageContentUrl(resolvedFolder, latestPrior.filename)
+      : null;
+
   const runScreening = async () => {
     if (tab === 'folder') await s.runFolderScreening();
     else await s.runUploadScreening();
+    const label = tab === 'folder' ? s.selectedName : s.file?.name;
+    if (label) worklist.markScreened(label);
     setMobilePanel('results');
   };
 
@@ -47,6 +65,7 @@ function ScreeningApp() {
     if (!resolvedFolder || imageNames.length === 0 || selected.length === 0) return;
     batch.reset();
     await batch.run(resolvedFolder, imageNames, selected, (filename, response) => {
+      worklist.markScreened(filename);
       timeline.addEntry(filename, response, {
         tab: 'folder',
         folder: resolvedFolder,
@@ -89,10 +108,11 @@ function ScreeningApp() {
     (row: { filename: string; response?: ScreeningResponse }) => {
       if (!row.response || !resolvedFolder) return;
       applyBatchResult(resolvedFolder, row.filename, row.response);
+      worklist.markScreened(row.filename);
       setActiveTimelineId(null);
       setMobilePanel('results');
     },
-    [applyBatchResult, resolvedFolder],
+    [applyBatchResult, resolvedFolder, worklist],
   );
 
   useEffect(() => {
@@ -123,6 +143,11 @@ function ScreeningApp() {
     loading: s.loading || batch.running,
     sourceKind: s.pdfSourceLabel,
     screenedAt: s.screenedAt,
+    metadata,
+    priorImageUrl,
+    priorLabel: latestPrior?.filename,
+    priorCount: priors.length,
+    isDicom: s.uploadIsDicom && !s.previewUrl,
     onPrevStudy: folderStudyNav ? selectPrevStudy : undefined,
     onNextStudy: folderStudyNav ? selectNextStudy : undefined,
     canPrevStudy: folderStudyNav && s.canPrevStudy,
@@ -135,6 +160,15 @@ function ScreeningApp() {
     imageUrl: s.previewUrl,
     sourceKind: s.pdfSourceLabel,
     screenedAt: s.screenedAt ?? undefined,
+    metadata,
+    priorStudy: latestPrior ?? null,
+    priorScreening: priorTimelineEntry?.screeningResponse,
+    onReviewChange: (reviewed: boolean) => {
+      if (reviewed && s.sourceLabel) worklist.markReviewed(s.sourceLabel);
+    },
+    onExportSuccess: () => {
+      if (s.sourceLabel) worklist.markExported(s.sourceLabel);
+    },
   };
 
   const timelineProps = {
@@ -195,6 +229,7 @@ function ScreeningApp() {
               flaggedStudyName={
                 s.response?.overall_flagged ? s.selectedName : undefined
               }
+              getWorklistStatus={worklist.getStatus}
             />
             <label className="mt-4 flex cursor-pointer items-center gap-2 text-xs text-[var(--text-muted)]">
               <input

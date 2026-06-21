@@ -19,11 +19,16 @@ Users select which trained **conditions** to evaluate (sidebar). Results show pe
 - **Auth** — Login gate (dev: user `root`, password `admin`)
 - **Themes** — Dark / light toggle in header
 - **Timeline** — Recent analyses (localStorage `byteai-timeline-v2`, max 20); click entry to restore informe; re-download PDF
-- **Viewer** — Zoom, pan, invert, reset; prev/next study in folder mode
+- **Worklist** — Per-study status badges (pendiente → analizado → revisado → exportado) in folder list (`byteai-worklist-v1`)
+- **NIH metadata** — Patient age/sex/view/follow-up from CSV via `/api/study/{filename}`; shown in viewer + informe
+- **Priors** — Side-by-side compare with most recent prior CXR (same patient ID)
+- **Viewer** — Zoom, pan, invert, window presets; prev/next study in folder mode
 - **Navigation** — Keyboard `↑`/`↓` or `j`/`k` between studies (folder tab); optional auto-advance after screening
 - **Batch** — “Analizar carpeta” runs screening on all listed images with progress, cancel, and summary table
-- **Export** — “Descargar informe PDF” with embedded thumbnail, findings table, and detail cards (jsPDF)
-- **Clinical visual language** — Priority stripes (amber = derivar, emerald = rutina), tabular probabilities, icon viewer toolbar, header triage chip when flagged
+- **Export** — PDF with thumbnail, editable impression/recommendations/clinician name, findings table
+- **Model cards** — Per-condition architecture, AUC, calibration table (from `evaluate.py` → `metrics_*.json`)
+- **Calibration preview** — Client-side threshold sliders (visual only; does not re-run model)
+- **Clinical visual language** — Priority stripes, tabular probabilities, header triage chip when flagged
 - **Mobile** — Bottom nav: Estudio · Visor · Informe · Protocolo
 
 ---

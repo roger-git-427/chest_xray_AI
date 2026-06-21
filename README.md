@@ -10,10 +10,10 @@
 
 | Area | Capabilities |
 |------|----------------|
-| **Screening** | Multi-condition inference (e.g. Cardiomegaly, Effusion) with per-condition thresholds and Spanish recommendations |
-| **Workflow** | Browse a local image folder or upload a single study; batch folder screening with progress and summary |
-| **Viewer** | PACS-style viewport — zoom, pan, invert, window presets, prev/next study navigation |
-| **Results** | Triage-oriented informe, timeline of recent analyses, PDF export with thumbnail and findings table |
+| **Screening** | Multi-condition inference (e.g. Cardiomegaly, Effusion) with per-condition thresholds, Grad-CAM heatmaps, and Spanish recommendations |
+| **Workflow** | Browse a local image folder or upload PNG/JPG/DICOM; batch folder screening with progress and summary |
+| **Viewer** | PACS-style viewport — zoom, pan, invert, window presets, prior side-by-side, prev/next study navigation |
+| **Results** | Triage informe, NIH/DICOM metadata, prior probability deltas, timeline, polished PDF with heatmaps and signature block |
 | **UX** | Spanish UI copy; dark/light theme; keyboard shortcuts (`↑`/`↓` or `j`/`k`); mobile-friendly layout |
 
 **Code and APIs are in English.** User-facing labels are in Spanish (`frontend/src/i18n/es.ts`).
@@ -25,7 +25,7 @@
 | Layer | Technologies |
 |-------|----------------|
 | **ML** | PyTorch, [timm](https://github.com/huggingface/pytorch-image-models), ConvNeXt-Tiny |
-| **API** | FastAPI, uvicorn, Pillow |
+| **API** | FastAPI, uvicorn, Pillow, pydicom |
 | **UI** | React 18, TypeScript, Vite 5, Tailwind CSS |
 | **Reports** | jsPDF (client-side PDF download) |
 
@@ -53,24 +53,18 @@ cd frontend
 npm install
 ```
 
-### Development (two terminals)
+### Development
 
-**Terminal 1 — API** (project root):
-
-```powershell
-.\.venv\Scripts\python -m uvicorn api.main:app --reload --host 127.0.0.1 --port 8001
-```
-
-Port **8001** is used in dev because 8000 is often busy on Windows. Vite proxies `/api` to this port.
-
-**Terminal 2 — frontend**:
+**One command** (project root):
 
 ```powershell
-cd frontend
-npm run dev
+npm install
+npm run dev:all
 ```
 
-Open **http://localhost:5173**. Default dev login: user `root`, password `admin` (see `frontend/src/context/AuthContext.tsx`).
+Starts API (port **8001**) and frontend (port **5173**) together. Open **http://localhost:5173**. Default dev login: user `root`, password `admin`.
+
+Or use two terminals — see [README-WEB.md](README-WEB.md).
 
 ### Production (single server)
 

@@ -12,23 +12,28 @@ pip install -r requirements-web.txt
 cd frontend && npm install
 ```
 
-## Development (two terminals)
+## Development
 
-**Terminal 1 — API** (from project root):
+**One terminal** (from project root):
 
 ```bash
-.\.venv\Scripts\python -m uvicorn api.main:app --reload --host 127.0.0.1 --port 8001
+npm install
+npm run dev:all
 ```
 
-Use port **8001** in development (port 8000 is often taken on Windows). Vite proxies `/api` to `http://127.0.0.1:8001` (see `frontend/vite.config.ts`).
+Starts the API on port **8001** and Vite on **5173** together. Open http://localhost:5173.
 
-**Terminal 2 — frontend**:
+Or run separately:
 
 ```bash
+# API
+.\.venv\Scripts\python -m uvicorn api.main:app --reload --host 127.0.0.1 --port 8001
+
+# Frontend
 cd frontend && npm run dev
 ```
 
-Open http://localhost:5173 — Vite proxies `/api` to the backend on port 8001.
+Use port **8001** in development (port 8000 is often taken on Windows). Vite proxies `/api` to `http://127.0.0.1:8001` (see `frontend/vite.config.ts`).
 
 **Folder tab:** browse `data/images/images` (default), filter by filename, pick an image, run screening without uploading.
 

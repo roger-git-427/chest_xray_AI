@@ -1,3 +1,5 @@
+import type { WorklistStatus } from '../../hooks/useWorklist';
+import { worklistStatusClass, worklistStatusLabel } from '../../lib/worklistStatus';
 import { es } from '../../i18n/es';
 
 type Props = {
@@ -11,6 +13,7 @@ type Props = {
   listLoading: boolean;
   listTruncated: boolean;
   flaggedStudyName?: string;
+  getWorklistStatus?: (name: string) => WorklistStatus;
   onPrevStudy?: () => void;
   onNextStudy?: () => void;
   canPrevStudy?: boolean;
@@ -32,6 +35,7 @@ export function FolderWorkspace({
   canPrevStudy,
   canNextStudy,
   flaggedStudyName,
+  getWorklistStatus,
 }: Props) {
   const showNav = Boolean(onPrevStudy && onNextStudy);
 
@@ -130,7 +134,9 @@ export function FolderWorkspace({
           </p>
         ) : (
           <ul className="max-h-[220px] space-y-1 overflow-y-auto pr-1">
-            {imageNames.map((name) => (
+            {imageNames.map((name) => {
+              const status = getWorklistStatus?.(name) ?? 'pending';
+              return (
               <li key={name}>
                 <button
                   type="button"
@@ -156,9 +162,15 @@ export function FolderWorkspace({
                   <span className="min-w-0 flex-1 truncate font-mono text-xs text-slate-200">
                     {name}
                   </span>
+                  {getWorklistStatus && (
+                    <span className={`worklist-badge shrink-0 ${worklistStatusClass(status)}`}>
+                      {worklistStatusLabel(status)}
+                    </span>
+                  )}
                 </button>
               </li>
-            ))}
+            );
+            })}
           </ul>
         )}
 

@@ -8,7 +8,7 @@ import config
 
 ROOT = config.PROJECT_ROOT
 MAX_LIST = 500
-IMAGE_SUFFIXES = {'.png', '.jpg', '.jpeg'}
+IMAGE_SUFFIXES = {'.png', '.jpg', '.jpeg', '.dcm', '.dicom'}
 ALLOWED_ROOTS = [
     (ROOT / 'data').resolve(),
 ]

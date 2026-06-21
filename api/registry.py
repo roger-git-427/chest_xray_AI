@@ -6,6 +6,7 @@ from PIL import Image
 
 import config
 from config import best_model_path
+from gradcam import generate_gradcam_overlay
 from inference import load_model, predict_image
 
 _models: dict[str, object] = {}
@@ -33,11 +34,18 @@ def preload(conditions: list[str] | None = None) -> list[str]:
     return loaded
 
 
-def screen_image(image: Image.Image, conditions: list[str]) -> list[dict]:
+def screen_image(
+    image: Image.Image,
+    conditions: list[str],
+    include_heatmaps: bool = False,
+) -> list[dict]:
     results = []
     for condition in conditions:
         model = get_model(condition)
-        results.append(predict_image(image, model, condition=condition))
+        result = predict_image(image, model, condition=condition)
+        if include_heatmaps:
+            result['heatmap_data_url'] = generate_gradcam_overlay(model, image)
+        results.append(result)
     return results
 
 

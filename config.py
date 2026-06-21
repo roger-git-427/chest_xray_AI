@@ -68,6 +68,9 @@ DEFAULT_REVIEW_THRESHOLD = 0.3
 REVIEW_THRESHOLDS = {
     'Cardiomegaly': 0.3,
     'Effusion': 0.4,
+    'Pneumonia': 0.35,
+    'Pneumothorax': 0.35,
+    'Nodule': 0.35,
 }
 
 
@@ -77,7 +80,13 @@ def review_threshold(condition=None):
 
 
 # Conditions exposed in the web UI (order preserved; needs best_model_<condition>.pth)
-SCREENING_CONDITIONS = ['Cardiomegaly', 'Effusion']
+SCREENING_CONDITIONS = [
+    'Cardiomegaly',
+    'Effusion',
+    'Pneumonia',
+    'Pneumothorax',
+    'Nodule',
+]
 
 
 def available_screening_conditions():

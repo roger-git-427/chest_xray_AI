@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import type { StudyMetadata } from '../../api/client';
 import {
   buildViewportFilter,
   type WindowPreset,
@@ -11,6 +12,11 @@ type Props = {
   loading?: boolean;
   sourceKind?: string;
   screenedAt?: string | null;
+  metadata?: StudyMetadata | null;
+  priorImageUrl?: string | null;
+  priorLabel?: string;
+  priorCount?: number;
+  isDicom?: boolean;
   onPrevStudy?: () => void;
   onNextStudy?: () => void;
   canPrevStudy?: boolean;
@@ -80,6 +86,11 @@ export function ImagingViewport({
   loading,
   sourceKind,
   screenedAt,
+  metadata,
+  priorImageUrl,
+  priorLabel,
+  priorCount = 0,
+  isDicom = false,
   onPrevStudy,
   onNextStudy,
   canPrevStudy,
@@ -89,6 +100,7 @@ export function ImagingViewport({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [inverted, setInverted] = useState(false);
   const [windowPreset, setWindowPreset] = useState<WindowPreset>('default');
+  const [comparePrior, setComparePrior] = useState(false);
   const [dragging, setDragging] = useState(false);
   const dragOrigin = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -102,6 +114,7 @@ export function ImagingViewport({
 
   useEffect(() => {
     resetView();
+    setComparePrior(false);
   }, [imageUrl, resetView]);
 
   const zoomBy = (delta: number) => {
@@ -248,6 +261,20 @@ export function ImagingViewport({
             )}
           </div>
         </div>
+        {imageUrl && priorImageUrl && (
+          <div className="flex flex-wrap items-center gap-2 border-t border-white/5 px-4 py-2">
+            <button
+              type="button"
+              onClick={() => setComparePrior((v) => !v)}
+              className={`viewport-window-btn ${comparePrior ? 'viewport-window-btn-active' : ''}`}
+            >
+              {comparePrior ? es.priorCompareOff : es.priorCompare}
+            </button>
+            <span className="text-[10px] text-slate-500">
+              {es.priorCount.replace('{n}', String(priorCount))}
+            </span>
+          </div>
+        )}
         {imageUrl && (
           <div className="viewport-window-bar flex flex-wrap items-center gap-2 border-t border-white/5 px-4 py-2">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
@@ -281,21 +308,56 @@ export function ImagingViewport({
             <p className="text-sm text-slate-400">{es.running}</p>
           </div>
         ) : imageUrl ? (
-          <img
-            src={imageUrl}
-            alt="Radiografía de tórax"
-            draggable={false}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
-            style={{
-              transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
-              filter: imageFilter,
-              transition: dragging ? 'none' : 'filter 0.15s ease',
-            }}
-            className="max-h-[min(65vh,580px)] w-full select-none object-contain drop-shadow-[0_0_40px_rgba(0,0,0,0.8)]"
-          />
+          <div
+            className={`flex h-full w-full items-center justify-center gap-2 ${
+              comparePrior && priorImageUrl ? 'flex-row' : ''
+            }`}
+          >
+            <div className={comparePrior && priorImageUrl ? 'flex-1 text-center' : 'w-full'}>
+              {comparePrior && priorImageUrl && (
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  {es.source}
+                </p>
+              )}
+              <img
+                src={imageUrl}
+                alt="Radiografía de tórax"
+                draggable={false}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerCancel={onPointerUp}
+                style={{
+                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+                  filter: imageFilter,
+                  transition: dragging ? 'none' : 'filter 0.15s ease',
+                }}
+                className="mx-auto max-h-[min(65vh,580px)] w-full select-none object-contain drop-shadow-[0_0_40px_rgba(0,0,0,0.8)]"
+              />
+            </div>
+            {comparePrior && priorImageUrl && (
+              <div className="flex-1 border-l border-white/10 pl-2 text-center">
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  {es.priorStudyLabel}
+                  {priorLabel ? ` · ${priorLabel}` : ''}
+                </p>
+                <img
+                  src={priorImageUrl}
+                  alt="Estudio previo"
+                  draggable={false}
+                  style={{ filter: imageFilter }}
+                  className="mx-auto max-h-[min(65vh,580px)] w-full select-none object-contain opacity-90"
+                />
+              </div>
+            )}
+          </div>
+        ) : isDicom ? (
+          <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+            <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-teal-500/25 bg-teal-500/10">
+              <span className="font-mono text-sm font-bold text-teal-400">DICOM</span>
+            </div>
+            <p className="text-sm leading-relaxed text-slate-400">{es.dicomPreviewPending}</p>
+          </div>
         ) : (
           <div className="flex max-w-xs flex-col items-center gap-4 text-center">
             <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.02]">
@@ -318,8 +380,33 @@ export function ImagingViewport({
         )}
       </div>
 
-      {imageUrl && (sourceKind || screenedLabel) && (
+      {imageUrl && (sourceKind || screenedLabel || metadata) && (
         <div className="viewport-meta-bar absolute bottom-0 left-0 right-0 z-20 flex flex-wrap gap-x-4 gap-y-1 border-t border-white/5 bg-black/75 px-4 py-2 text-[10px] text-slate-500 backdrop-blur-sm">
+          {metadata?.patient_id && (
+            <span>
+              {es.studyMetaPatient}: <span className="text-slate-400">{metadata.patient_id}</span>
+            </span>
+          )}
+          {metadata?.age && (
+            <span>
+              {es.studyMetaAge}: <span className="text-slate-400">{metadata.age}</span>
+            </span>
+          )}
+          {metadata?.gender && (
+            <span>
+              {es.studyMetaGender}: <span className="text-slate-400">{metadata.gender}</span>
+            </span>
+          )}
+          {metadata?.view_position && (
+            <span>
+              {es.studyMetaView}: <span className="text-slate-400">{metadata.view_position}</span>
+            </span>
+          )}
+          {metadata?.follow_up != null && (
+            <span>
+              {es.studyMetaFollowUp}: <span className="pro-tabular text-slate-400">{metadata.follow_up}</span>
+            </span>
+          )}
           {sourceKind && (
             <span>
               {es.studyMetaSource}: <span className="text-slate-400">{sourceKind}</span>
@@ -330,7 +417,6 @@ export function ImagingViewport({
               {es.pdfScreenedAt}: <span className="pro-tabular text-slate-400">{screenedLabel}</span>
             </span>
           )}
-          <span className="text-slate-600">{es.viewportMeta}</span>
         </div>
       )}
     </div>

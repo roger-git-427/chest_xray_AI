@@ -6,14 +6,16 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from PIL import Image
 
 import config
+from api.dicom_io import encode_preview_data_url, is_dicom_file, load_image_bytes, load_image_path
 from api.images import list_images, resolve_image_file
+from api.model_cards import build_model_card
 from api.registry import loaded_conditions, preload, screen_image
+from api.studies import get_priors, get_study, metadata_available
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -33,7 +35,12 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['http://localhost:5173', 'http://127.0.0.1:5173'],
+    allow_origins=[
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:5174',
+        'http://127.0.0.1:5174',
+    ],
     allow_credentials=True,
     allow_methods=['*'],
     allow_headers=['*'],
@@ -68,6 +75,11 @@ def get_image_content(
     name: str = Query(...),
 ):
     path = resolve_image_file(folder, name)
+    if is_dicom_file(name):
+        image, _ = load_image_path(path)
+        buf = io.BytesIO()
+        image.save(buf, format='JPEG', quality=92)
+        return Response(content=buf.getvalue(), media_type='image/jpeg')
     return FileResponse(path)
 
 
@@ -80,6 +92,7 @@ class ScreenPathBody(BaseModel):
 def screen_from_path(
     body: ScreenPathBody,
     conditions: list[str] = Query(default=[]),
+    include_heatmaps: bool = Query(default=False),
 ):
     available = config.available_screening_conditions()
     if not available:
@@ -91,17 +104,39 @@ def screen_from_path(
 
     path = resolve_image_file(body.folder, body.filename)
     try:
-        image = Image.open(path).convert('RGB')
+        image, dicom_meta = load_image_path(path)
     except Exception as exc:
         raise HTTPException(400, f'Invalid image: {exc}') from exc
 
-    results = screen_image(image, selected)
-    return {
+    results = screen_image(image, selected, include_heatmaps=include_heatmaps)
+    payload = {
         'filename': body.filename,
         'folder': body.folder,
         'overall_flagged': any(r['flagged'] for r in results),
         'results': results,
     }
+    if dicom_meta:
+        payload['is_dicom'] = True
+        payload['dicom_metadata'] = dicom_meta
+        payload['preview_data_url'] = encode_preview_data_url(image)
+    return payload
+
+
+@app.get('/api/study/{filename}')
+def study_metadata(filename: str):
+    if not metadata_available():
+        raise HTTPException(404, 'NIH metadata CSV not found')
+    meta = get_study(filename)
+    if meta is None:
+        raise HTTPException(404, 'Study not found in metadata')
+    return meta
+
+
+@app.get('/api/study/{filename}/priors')
+def study_priors(filename: str):
+    if not metadata_available():
+        return {'priors': []}
+    return {'priors': get_priors(filename)}
 
 
 @app.get('/api/conditions')
@@ -116,6 +151,7 @@ def list_conditions():
             'label': config.condition_label_es(condition),
             'threshold': config.review_threshold(condition),
             'available': available,
+            'model_card': build_model_card(condition, available),
         })
     return {'conditions': items}
 
@@ -124,9 +160,11 @@ def list_conditions():
 async def screen(
     file: UploadFile = File(...),
     conditions: list[str] = Query(default=[]),
+    include_heatmaps: bool = Query(default=False),
 ):
-    if file.content_type and not file.content_type.startswith('image/'):
-        raise HTTPException(400, 'File must be an image')
+    dicom = is_dicom_file(file.filename, file.content_type)
+    if not dicom and file.content_type and not file.content_type.startswith('image/'):
+        raise HTTPException(400, 'File must be an image or DICOM (.dcm)')
 
     available = config.available_screening_conditions()
     if not available:
@@ -138,17 +176,22 @@ async def screen(
 
     raw = await file.read()
     try:
-        image = Image.open(io.BytesIO(raw)).convert('RGB')
+        image, dicom_meta = load_image_bytes(raw, file.filename)
     except Exception as exc:
         raise HTTPException(400, f'Invalid image: {exc}') from exc
 
-    results = screen_image(image, selected)
+    results = screen_image(image, selected, include_heatmaps=include_heatmaps)
     any_flagged = any(r['flagged'] for r in results)
-    return {
+    payload = {
         'filename': file.filename,
         'overall_flagged': any_flagged,
         'results': results,
     }
+    if dicom_meta:
+        payload['is_dicom'] = True
+        payload['dicom_metadata'] = dicom_meta
+        payload['preview_data_url'] = encode_preview_data_url(image)
+    return payload
 
 
 def _mount_frontend():

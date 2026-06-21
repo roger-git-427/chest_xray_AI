@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ScreeningResult } from '../../api/client';
 import { es } from '../../i18n/es';
 import { ProbabilityGauge } from '../ui/ProbabilityGauge';
@@ -7,9 +8,11 @@ type Props = {
 };
 
 export function FindingCard({ result }: Props) {
+  const [showHeatmap, setShowHeatmap] = useState(false);
   const flagged = result.flagged;
   const pct = Math.round(result.probability * 100);
   const threshPct = Math.round(result.threshold * 100);
+  const hasHeatmap = Boolean(result.heatmap_data_url);
 
   return (
     <article
@@ -17,6 +20,18 @@ export function FindingCard({ result }: Props) {
         flagged ? 'finding-card-flagged' : 'finding-card-clear'
       }`}
     >
+      {hasHeatmap && showHeatmap && (
+        <div className="mb-3 overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-black/40">
+          <img
+            src={result.heatmap_data_url!}
+            alt={es.heatmapAlt.replace('{condition}', result.condition_label)}
+            className="mx-auto max-h-40 w-full object-contain"
+          />
+          <p className="border-t border-[var(--border-subtle)] px-2 py-1 text-center text-[10px] text-[var(--text-faint)]">
+            {es.heatmapCaption}
+          </p>
+        </div>
+      )}
       <div className="flex gap-3">
         <ProbabilityGauge
           probability={result.probability}
@@ -70,6 +85,15 @@ export function FindingCard({ result }: Props) {
           <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)]">
             {result.recommendation}
           </p>
+          {hasHeatmap && (
+            <button
+              type="button"
+              onClick={() => setShowHeatmap((v) => !v)}
+              className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-teal-600 hover:text-teal-500 dark:text-teal-400"
+            >
+              {showHeatmap ? es.heatmapHide : es.heatmapShow}
+            </button>
+          )}
           <p className="mt-1.5 text-[10px] uppercase tracking-wider text-[var(--text-faint)]">
             {es.modelSignal}
           </p>

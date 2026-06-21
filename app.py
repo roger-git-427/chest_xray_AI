@@ -1,6 +1,3 @@
-# Deprecated: use the React UI + FastAPI backend instead (see README-WEB.md).
-# Run:  streamlit run app.py
-# Or:   python app.py   (re-launches via Streamlit automatically)
 
 import sys
 from pathlib import Path

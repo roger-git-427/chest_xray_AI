@@ -16,7 +16,7 @@ export function UploadWorkspace({ file, onFile }: Props) {
       <label className="upload-zone">
         <input
           type="file"
-          accept="image/png,image/jpeg"
+          accept="image/png,image/jpeg,.dcm,.dicom,application/dicom"
           className="hidden"
           onChange={(e) => onFile(e.target.files?.[0] ?? null)}
         />

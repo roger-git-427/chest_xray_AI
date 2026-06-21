@@ -2,6 +2,10 @@
 #   python evaluate.py --condition Effusion
 
 import argparse
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
 import numpy as np
 import torch
 from sklearn.metrics import roc_auc_score, confusion_matrix
@@ -66,6 +70,7 @@ def main():
     print(f"  Max:  {probs.max():.4f}")
     print(f"  Mean: {probs.mean():.4f}")
 
+    threshold_analysis = []
     print(f"\nThreshold analysis:")
     for threshold in [0.1, 0.2, 0.3, 0.4, 0.5]:
         preds = (probs >= threshold).astype(int)
@@ -78,6 +83,28 @@ def main():
               f"Sensitivity: {sensitivity:.3f} | "
               f"Specificity: {specificity:.3f} | "
               f"TP: {tp} FP: {fp} FN: {fn} TN: {tn}")
+        threshold_analysis.append({
+            'threshold': threshold,
+            'sensitivity': round(sensitivity, 4),
+            'specificity': round(specificity, 4),
+            'tp': int(tp),
+            'fp': int(fp),
+            'fn': int(fn),
+            'tn': int(tn),
+        })
+
+    metrics_path = Path('checkpoints') / f'metrics_{config.CONDITION.lower()}.json'
+    metrics_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        'condition': config.CONDITION,
+        'test_auc': round(float(auc), 4),
+        'evaluated_at': datetime.now(timezone.utc).isoformat(),
+        'architecture': config.MODEL_NAME,
+        'dataset': 'NIH ChestX-ray14',
+        'threshold_analysis': threshold_analysis,
+    }
+    metrics_path.write_text(json.dumps(payload, indent=2), encoding='utf-8')
+    print(f"\nWrote model metrics: {metrics_path}")
 
 
 if __name__ == '__main__':

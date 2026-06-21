@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import type { ScreeningResponse } from '../../api/client';
+import type { ScreeningResponse, StudyMetadata } from '../../api/client';
+import type { ReportDraft } from '../../hooks/useReportDraft';
 import { generateScreeningPdf } from '../../lib/generateScreeningPdf';
 import { es } from '../../i18n/es';
 
@@ -9,6 +10,9 @@ type Props = {
   imageUrl?: string | null;
   sourceKind?: string;
   screenedAt?: string;
+  metadata?: StudyMetadata | null;
+  reportDraft?: ReportDraft;
+  clinicallyReviewed?: boolean;
   onSuccess?: () => void;
 };
 
@@ -18,6 +22,9 @@ export function ExportReportButton({
   imageUrl,
   sourceKind,
   screenedAt,
+  metadata,
+  reportDraft,
+  clinicallyReviewed,
   onSuccess,
 }: Props) {
   const [busy, setBusy] = useState(false);
@@ -32,6 +39,10 @@ export function ExportReportButton({
         imageUrl,
         sourceKind,
         screenedAt,
+        metadata,
+        dicomMetadata: response.dicom_metadata,
+        reportDraft,
+        clinicallyReviewed,
       });
       onSuccess?.();
     } catch {
