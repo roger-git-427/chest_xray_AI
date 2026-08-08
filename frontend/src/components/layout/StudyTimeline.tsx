@@ -1,5 +1,6 @@
 import type { TimelineEntry } from '../../hooks/useStudyTimeline';
 import { es } from '../../i18n/es';
+import { formatEsDateTime } from '../../lib/format';
 
 type Props = {
   entries: TimelineEntry[];
@@ -11,17 +12,6 @@ type Props = {
   /** Shorter scroll area for laptop sidebar layout */
   compact?: boolean;
 };
-
-function formatTime(iso: string) {
-  try {
-    return new Intl.DateTimeFormat('es-MX', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
-}
 
 export function StudyTimeline({
   entries,
@@ -90,7 +80,7 @@ export function StudyTimeline({
                     </span>
                   </div>
                   <p className="mt-1 text-[10px] text-[var(--text-faint)]">
-                    {formatTime(e.at)}
+                    {formatEsDateTime(e.at, 'compact')}
                   </p>
                   <ul className="mt-2 flex flex-wrap gap-1">
                     {e.findings.map((f) => (

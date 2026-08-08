@@ -1,47 +1,65 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { savePersistedReport, type PersistedReport } from '../api/client';
+import {
+  isLegacyStudyReviewed,
+  readLegacyReportDraft,
+  writeLegacyReportDraft,
+} from '../lib/legacyClinicalStorage';
+import {
+  toReportDraft,
+  type ReportDraft,
+} from '../lib/studyMappers';
 
-export type ReportDraft = {
-  impression: string;
-  recommendations: string;
-  clinicianName: string;
+export type { ReportDraft } from '../lib/studyMappers';
+export {
+  isLegacyStudyReviewed as isClinicallyReviewed,
+  readLegacyReportDraft as readReportDraft,
 };
 
-const STORAGE_PREFIX = 'byteai-report-draft-';
-
-const EMPTY: ReportDraft = {
-  impression: '',
-  recommendations: '',
-  clinicianName: '',
-};
-
-function readDraft(studyKey: string | undefined): ReportDraft {
-  if (!studyKey) return EMPTY;
-  try {
-    const raw = localStorage.getItem(`${STORAGE_PREFIX}${studyKey}`);
-    if (!raw) return EMPTY;
-    return { ...EMPTY, ...JSON.parse(raw) };
-  } catch {
-    return EMPTY;
-  }
-}
-
-export function useReportDraft(studyKey: string | undefined) {
-  const [draft, setDraft] = useState<ReportDraft>(() => readDraft(studyKey));
+export function useReportDraft(
+  studyKey: string | undefined,
+  studyId?: string,
+  persisted?: PersistedReport | null,
+) {
+  const [draft, setDraft] = useState<ReportDraft>(() =>
+    persisted ? toReportDraft(persisted) : readLegacyReportDraft(studyKey),
+  );
+  const dirty = useRef(false);
 
   useEffect(() => {
-    setDraft(readDraft(studyKey));
-  }, [studyKey]);
+    dirty.current = false;
+    setDraft(
+      persisted ? toReportDraft(persisted) : readLegacyReportDraft(studyKey),
+    );
+  }, [studyKey, studyId, persisted?.id]);
+
+  useEffect(() => {
+    if (!studyId || !dirty.current) return;
+    const timer = window.setTimeout(() => {
+      void savePersistedReport(studyId, {
+        impression: draft.impression,
+        recommendations: draft.recommendations,
+        clinician_name: draft.clinicianName,
+      }).then(() => {
+        dirty.current = false;
+      });
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [draft, studyId]);
 
   const updateField = useCallback(
     (field: keyof ReportDraft, value: string) => {
       if (!studyKey) return;
       setDraft((prev) => {
         const next = { ...prev, [field]: value };
-        localStorage.setItem(`${STORAGE_PREFIX}${studyKey}`, JSON.stringify(next));
+        dirty.current = true;
+        if (!studyId) {
+          writeLegacyReportDraft(studyKey, next);
+        }
         return next;
       });
     },
-    [studyKey],
+    [studyKey, studyId],
   );
 
   return { draft, updateField };

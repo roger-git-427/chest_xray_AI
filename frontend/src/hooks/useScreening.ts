@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   fetchConditions,
-  fetchImageList,
   fetchSettings,
-  imageContentUrl,
   screenImage,
   screenImageFromPath,
   type ConditionInfo,
   type ScreeningResponse,
 } from '../api/client';
 import { es } from '../i18n/es';
+import { useAuth } from '../context/AuthContext';
+import { useClinic } from '../context/ClinicContext';
 import type { TimelineAddContext, TimelineEntry } from './useStudyTimeline';
 import type { WorkspaceTab } from '../types/workspace';
+import { isAdmin } from '../lib/roles';
+import { useClinicPatients } from './useClinicPatients';
+import { useFolderStudyList } from './useFolderStudyList';
+import { useUploadStudy } from './useUploadStudy';
 
 export type { WorkspaceTab };
 
@@ -22,28 +26,51 @@ export function useScreening(
     context: TimelineAddContext,
   ) => void,
 ) {
+  const { user } = useAuth();
+  const { activeClinic } = useClinic();
   const [conditions, setConditions] = useState<ConditionInfo[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
-  const [tab, setTab] = useState<WorkspaceTab>('folder');
-
-  const [folder, setFolder] = useState('');
-  const [resolvedFolder, setResolvedFolder] = useState('');
-  const [filterQuery, setFilterQuery] = useState('');
-  const [imageNames, setImageNames] = useState<string[]>([]);
-  const [listTruncated, setListTruncated] = useState(false);
-  const [selectedName, setSelectedName] = useState('');
-
-  const [file, setFile] = useState<File | null>(null);
-  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
-  const [uploadIsDicom, setUploadIsDicom] = useState(false);
-
+  const [tab, setTab] = useState<WorkspaceTab>(
+    isAdmin(user) ? 'upload' : 'folder',
+  );
   const [loading, setLoading] = useState(false);
-  const [listLoading, setListLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [response, setResponse] = useState<ScreeningResponse | null>(null);
   const [autoAdvance, setAutoAdvance] = useState(false);
   const [sourceKind, setSourceKind] = useState<'folder' | 'upload'>('folder');
   const [screenedAt, setScreenedAt] = useState<string | null>(null);
+  const clearResponse = useCallback(() => setResponse(null), []);
+  const folderStudy = useFolderStudyList(tab, clearResponse);
+  const uploadStudy = useUploadStudy(clearResponse);
+  const { patients, selectedPatientId, setSelectedPatientId } =
+    useClinicPatients();
+  const {
+    folder,
+    setFolder,
+    resolvedFolder,
+    setResolvedFolder,
+    filterQuery,
+    setFilterQuery,
+    imageNames,
+    listTruncated,
+    selectedName,
+    setSelectedName,
+    selectedIndex,
+    listLoading,
+    previewUrl: folderPreviewUrl,
+    selectStudy,
+    selectPrevStudy,
+    selectNextStudy,
+  } = folderStudy;
+  const {
+    file,
+    setFile,
+    uploadPreview,
+    setUploadPreview,
+    uploadIsDicom,
+    setUploadIsDicom,
+    onFile,
+  } = uploadStudy;
 
   useEffect(() => {
     Promise.all([fetchConditions(), fetchSettings()])
@@ -53,56 +80,11 @@ export function useScreening(
         setFolder(settings.default_image_dir);
       })
       .catch(() => setError(es.errorLoadConditions));
-  }, []);
+  }, [setFolder]);
 
   useEffect(() => {
-    if (!folder.trim() || tab !== 'folder') return;
-
-    const timer = window.setTimeout(() => {
-      setListLoading(true);
-      fetchImageList(folder.trim(), filterQuery)
-        .then((data) => {
-          setResolvedFolder(data.folder);
-          setImageNames(data.names);
-          setListTruncated(data.truncated);
-          setSelectedName((prev) =>
-            prev && data.names.includes(prev) ? prev : data.names[0] ?? '',
-          );
-        })
-        .catch(() => {
-          setImageNames([]);
-          setSelectedName('');
-          setResolvedFolder('');
-        })
-        .finally(() => setListLoading(false));
-    }, 300);
-
-    return () => window.clearTimeout(timer);
-  }, [folder, filterQuery, tab]);
-
-  const folderPreviewUrl = useMemo(() => {
-    if (!resolvedFolder || !selectedName) return null;
-    return imageContentUrl(resolvedFolder, selectedName);
-  }, [resolvedFolder, selectedName]);
-
-  const isDicomName = (name: string) => /\.(dcm|dicom)$/i.test(name);
-
-  const onFile = useCallback(
-    (f: File | null) => {
-      setFile(f);
-      setResponse(null);
-      if (uploadPreview?.startsWith('blob:')) URL.revokeObjectURL(uploadPreview);
-      if (!f) {
-        setUploadPreview(null);
-        setUploadIsDicom(false);
-        return;
-      }
-      const dicom = isDicomName(f.name);
-      setUploadIsDicom(dicom);
-      setUploadPreview(dicom ? null : URL.createObjectURL(f));
-    },
-    [uploadPreview],
-  );
+    if (isAdmin(user)) setTab('upload');
+  }, [user?.role]);
 
   const availableCount = useMemo(
     () => conditions.filter((c) => c.available).length,
@@ -114,26 +96,6 @@ export function useScreening(
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   };
-
-  const selectedIndex = useMemo(
-    () => imageNames.indexOf(selectedName),
-    [imageNames, selectedName],
-  );
-
-  const selectStudy = useCallback((name: string) => {
-    setSelectedName(name);
-    setResponse(null);
-  }, []);
-
-  const selectPrevStudy = useCallback(() => {
-    if (selectedIndex <= 0) return;
-    selectStudy(imageNames[selectedIndex - 1]);
-  }, [imageNames, selectedIndex, selectStudy]);
-
-  const selectNextStudy = useCallback(() => {
-    if (selectedIndex < 0 || selectedIndex >= imageNames.length - 1) return;
-    selectStudy(imageNames[selectedIndex + 1]);
-  }, [imageNames, selectedIndex, selectStudy]);
 
   const advanceAfterScreening = useCallback(() => {
     if (!autoAdvance || tab !== 'folder') return;
@@ -168,8 +130,20 @@ export function useScreening(
     setLoading(true);
     setError(null);
     try {
-      const res = await screenImage(file, selected);
-      completeAnalysis(file.name, res, 'upload', uploadPreview);
+      if (!activeClinic) return;
+      const res = await screenImage(
+        file,
+        selected,
+        activeClinic.id,
+        selectedPatientId || undefined,
+        { includeHeatmaps: true },
+      );
+      completeAnalysis(
+        file.name,
+        res,
+        'upload',
+        res.preview_data_url ?? uploadPreview,
+      );
     } catch {
       setError(es.errorScreening);
     } finally {
@@ -187,6 +161,8 @@ export function useScreening(
         selectedName,
         selected,
         { includeHeatmaps: true },
+        activeClinic?.id,
+        selectedPatientId || undefined,
       );
       completeAnalysis(selectedName, res, 'folder', folderPreviewUrl);
       advanceAfterScreening();
@@ -210,11 +186,19 @@ export function useScreening(
       if (entry.filename) setSelectedName(entry.filename);
     } else if (entry.tab === 'upload') {
       setFile(null);
-      if (uploadPreview?.startsWith('blob:')) URL.revokeObjectURL(uploadPreview);
-      setUploadPreview(entry.screeningResponse.preview_data_url ?? null);
+      setUploadPreview(
+        entry.imageUrl ?? entry.screeningResponse.preview_data_url ?? null,
+      );
       setUploadIsDicom(Boolean(entry.screeningResponse.is_dicom));
     }
-  }, [uploadPreview]);
+  }, [
+    setFile,
+    setFolder,
+    setResolvedFolder,
+    setSelectedName,
+    setUploadIsDicom,
+    setUploadPreview,
+  ]);
 
   const applyBatchResult = useCallback(
     (folder: string, filename: string, res: ScreeningResponse) => {
@@ -242,8 +226,10 @@ export function useScreening(
     selected.length > 0 &&
     !loading &&
     (tab === 'folder'
-      ? Boolean(selectedName) && !listLoading
-      : Boolean(file));
+      ? Boolean(selectedName) && !listLoading && Boolean(activeClinic)
+      : Boolean(file) &&
+        Boolean(activeClinic) &&
+        (!isAdmin(user) || Boolean(selectedPatientId)));
 
   const canPrevStudy = tab === 'folder' && selectedIndex > 0;
   const canNextStudy =
@@ -257,6 +243,9 @@ export function useScreening(
   return {
     conditions,
     selected,
+    patients,
+    selectedPatientId,
+    setSelectedPatientId,
     tab,
     setTab,
     folder,

@@ -4,7 +4,10 @@ import {
   buildViewportFilter,
   type WindowPreset,
 } from '../../lib/viewportWindowLevel';
+import { formatEsDateTime } from '../../lib/format';
 import { es } from '../../i18n/es';
+
+type HeatmapLayer = { label: string; url: string };
 
 type Props = {
   imageUrl: string | null;
@@ -16,6 +19,7 @@ type Props = {
   priorImageUrl?: string | null;
   priorLabel?: string;
   priorCount?: number;
+  heatmapLayers?: HeatmapLayer[];
   isDicom?: boolean;
   onPrevStudy?: () => void;
   onNextStudy?: () => void;
@@ -38,15 +42,7 @@ function clampScale(s: number) {
 }
 
 function formatScreenedAt(iso: string | null | undefined) {
-  if (!iso) return null;
-  try {
-    return new Intl.DateTimeFormat('es-MX', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }).format(new Date(iso));
-  } catch {
-    return null;
-  }
+  return iso ? formatEsDateTime(iso, 'compact') : null;
 }
 
 function ToolBtn({
@@ -90,6 +86,7 @@ export function ImagingViewport({
   priorImageUrl,
   priorLabel,
   priorCount = 0,
+  heatmapLayers = [],
   isDicom = false,
   onPrevStudy,
   onNextStudy,
@@ -101,6 +98,8 @@ export function ImagingViewport({
   const [inverted, setInverted] = useState(false);
   const [windowPreset, setWindowPreset] = useState<WindowPreset>('default');
   const [comparePrior, setComparePrior] = useState(false);
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [activeHeatmap, setActiveHeatmap] = useState(0);
   const [dragging, setDragging] = useState(false);
   const dragOrigin = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -115,7 +114,12 @@ export function ImagingViewport({
   useEffect(() => {
     resetView();
     setComparePrior(false);
+    setShowHeatmap(false);
+    setActiveHeatmap(0);
   }, [imageUrl, resetView]);
+
+  const hasHeatmaps = heatmapLayers.length > 0;
+  const currentHeatmap = hasHeatmaps ? heatmapLayers[activeHeatmap] : null;
 
   const zoomBy = (delta: number) => {
     setScale((s) => clampScale(s + delta));
@@ -261,6 +265,34 @@ export function ImagingViewport({
             )}
           </div>
         </div>
+        {imageUrl && hasHeatmaps && (
+          <div className="flex flex-wrap items-center gap-2 border-t border-white/5 px-4 py-2">
+            <button
+              type="button"
+              onClick={() => setShowHeatmap((v) => !v)}
+              className={`viewport-window-btn ${showHeatmap ? 'viewport-window-btn-active' : ''}`}
+            >
+              {showHeatmap ? es.viewerHeatmapHide : es.viewerHeatmapShow}
+            </button>
+            {showHeatmap && heatmapLayers.length > 1 && (
+              <div className="viewport-window-seg">
+                {heatmapLayers.map((layer, i) => (
+                  <button
+                    key={layer.label}
+                    type="button"
+                    onClick={() => setActiveHeatmap(i)}
+                    className={`viewport-window-btn ${activeHeatmap === i ? 'viewport-window-btn-active' : ''}`}
+                  >
+                    {layer.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {showHeatmap && currentHeatmap && (
+              <span className="text-[10px] text-slate-500">{currentHeatmap.label}</span>
+            )}
+          </div>
+        )}
         {imageUrl && priorImageUrl && (
           <div className="flex flex-wrap items-center gap-2 border-t border-white/5 px-4 py-2">
             <button
@@ -319,21 +351,36 @@ export function ImagingViewport({
                   {es.source}
                 </p>
               )}
-              <img
-                src={imageUrl}
-                alt="Radiografía de tórax"
-                draggable={false}
-                onPointerDown={onPointerDown}
-                onPointerMove={onPointerMove}
-                onPointerUp={onPointerUp}
-                onPointerCancel={onPointerUp}
+              <div
+                className="relative mx-auto inline-block max-w-full"
                 style={{
                   transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
-                  filter: imageFilter,
-                  transition: dragging ? 'none' : 'filter 0.15s ease',
+                  transition: dragging ? 'none' : 'transform 0.15s ease',
                 }}
-                className="mx-auto max-h-[min(65vh,580px)] w-full select-none object-contain drop-shadow-[0_0_40px_rgba(0,0,0,0.8)]"
-              />
+              >
+                <img
+                  src={imageUrl}
+                  alt="Radiografía de tórax"
+                  draggable={false}
+                  onPointerDown={onPointerDown}
+                  onPointerMove={onPointerMove}
+                  onPointerUp={onPointerUp}
+                  onPointerCancel={onPointerUp}
+                  style={{
+                    filter: imageFilter,
+                    transition: dragging ? 'none' : 'filter 0.15s ease',
+                  }}
+                  className="mx-auto max-h-[min(65vh,580px)] w-full select-none object-contain drop-shadow-[0_0_40px_rgba(0,0,0,0.8)]"
+                />
+                {showHeatmap && currentHeatmap && (
+                  <img
+                    src={currentHeatmap.url}
+                    alt={es.heatmapAlt.replace('{condition}', currentHeatmap.label)}
+                    draggable={false}
+                    className="pointer-events-none absolute inset-0 h-full w-full object-contain opacity-75"
+                  />
+                )}
+              </div>
             </div>
             {comparePrior && priorImageUrl && (
               <div className="flex-1 border-l border-white/10 pl-2 text-center">

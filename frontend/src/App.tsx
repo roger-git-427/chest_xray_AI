@@ -1,24 +1,32 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { AuthGate } from './components/auth/AuthGate';
+import { ClinicAdminPanel } from './components/admin/ClinicAdminPanel';
+import { PatientPortal } from './components/patient/PatientPortal';
 import { AppHeader } from './components/layout/AppHeader';
 import { ConditionsRail } from './components/layout/ConditionsRail';
 import { MobileNav, type MobilePanel } from './components/layout/MobileNav';
 import { StudyTimeline } from './components/layout/StudyTimeline';
 import { WorkflowBar } from './components/layout/WorkflowBar';
 import { ResultsDashboard } from './components/results/ResultsDashboard';
-import { BatchScreeningPanel } from './components/workspace/BatchScreeningPanel';
-import { FolderWorkspace } from './components/workspace/FolderWorkspace';
 import { ImagingViewport } from './components/workspace/ImagingViewport';
-import { UploadWorkspace } from './components/workspace/UploadWorkspace';
+import { StudySourcePanel } from './components/workspace/StudySourcePanel';
 import { generateScreeningPdf } from './lib/generateScreeningPdf';
 import { useBatchScreening } from './hooks/useBatchScreening';
 import { useStudyTimeline } from './hooks/useStudyTimeline';
 import type { TimelineEntry } from './hooks/useStudyTimeline';
 import { useScreening } from './hooks/useScreening';
-import { useStudyMeta } from './hooks/useStudyMeta';
+import { useStudyKeyboardNav } from './hooks/useStudyKeyboardNav';
+import { usePriorScreening } from './hooks/usePriorScreening';
 import { useWorklist } from './hooks/useWorklist';
-import { imageContentUrl, type ScreeningResponse } from './api/client';
+import {
+  fetchStudyMetadata,
+  imageContentUrl,
+  type ScreeningResponse,
+} from './api/client';
+import { isClinicallyReviewed, readReportDraft } from './hooks/useReportDraft';
 import { es } from './i18n/es';
+import { useAuth } from './context/AuthContext';
+import { isPatient } from './lib/roles';
 
 function ScreeningApp() {
   const timeline = useStudyTimeline();
@@ -41,17 +49,24 @@ function ScreeningApp() {
   } = s;
 
   const studyFilename = tab === 'folder' ? s.selectedName : s.file?.name;
-  const { metadata, priors } = useStudyMeta(studyFilename || undefined);
-  const latestPrior = priors[0];
-  const priorTimelineEntry = latestPrior
-    ? timeline.entries.find(
-        (e) => e.filename === latestPrior.filename || e.studyLabel === latestPrior.filename,
-      )
-    : undefined;
-  const priorImageUrl =
-    tab === 'folder' && resolvedFolder && latestPrior
-      ? imageContentUrl(resolvedFolder, latestPrior.filename)
-      : null;
+  const prior = usePriorScreening({
+    studyFilename: studyFilename || undefined,
+    tab,
+    resolvedFolder,
+    conditions: selected,
+    timelineEntries: timeline.entries,
+    addTimelineEntry: timeline.addEntry,
+    markScreened: worklist.markScreened,
+  });
+  const {
+    metadata,
+    priors,
+    latestPrior,
+    priorScreening,
+    priorImageUrl,
+    screenPrior,
+    loading: priorScreeningLoading,
+  } = prior;
 
   const runScreening = async () => {
     if (tab === 'folder') await s.runFolderScreening();
@@ -92,12 +107,19 @@ function ScreeningApp() {
         entry.imageUrl ??
         (entry.tab === 'folder' && entry.folder && entry.filename
           ? imageContentUrl(entry.folder, entry.filename)
-          : null);
+          : entry.screeningResponse.preview_data_url ?? null);
+      const metadata =
+        entry.tab === 'folder' && entry.filename
+          ? await fetchStudyMetadata(entry.filename).catch(() => null)
+          : null;
       await generateScreeningPdf(entry.screeningResponse, {
         sourceLabel: entry.studyLabel,
         imageUrl,
         sourceKind: entry.tab === 'folder' ? es.pdfSourceFolder : es.pdfSourceUpload,
         screenedAt: entry.at,
+        metadata,
+        reportDraft: readReportDraft(entry.studyLabel),
+        clinicallyReviewed: isClinicallyReviewed(entry.studyLabel),
       });
     } catch {
       setTimelineExportError(es.errorTimelineExport);
@@ -115,25 +137,12 @@ function ScreeningApp() {
     [applyBatchResult, resolvedFolder, worklist],
   );
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      const tag = target?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      if (target?.isContentEditable) return;
-      if (tab !== 'folder' || batch.running) return;
-
-      if (e.key === 'ArrowDown' || e.key === 'j') {
-        e.preventDefault();
-        selectNextStudy();
-      } else if (e.key === 'ArrowUp' || e.key === 'k') {
-        e.preventDefault();
-        selectPrevStudy();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [tab, batch.running, selectNextStudy, selectPrevStudy]);
+  useStudyKeyboardNav(
+    tab,
+    batch.running,
+    selectPrevStudy,
+    selectNextStudy,
+  );
 
   const folderStudyNav = tab === 'folder';
 
@@ -147,6 +156,10 @@ function ScreeningApp() {
     priorImageUrl,
     priorLabel: latestPrior?.filename,
     priorCount: priors.length,
+    heatmapLayers:
+      s.response?.results
+        .filter((r) => r.heatmap_data_url)
+        .map((r) => ({ label: r.condition_label, url: r.heatmap_data_url! })) ?? [],
     isDicom: s.uploadIsDicom && !s.previewUrl,
     onPrevStudy: folderStudyNav ? selectPrevStudy : undefined,
     onNextStudy: folderStudyNav ? selectNextStudy : undefined,
@@ -162,7 +175,10 @@ function ScreeningApp() {
     screenedAt: s.screenedAt ?? undefined,
     metadata,
     priorStudy: latestPrior ?? null,
-    priorScreening: priorTimelineEntry?.screeningResponse,
+    priorScreening,
+    onScreenPrior:
+      tab === 'folder' && latestPrior && !priorScreening ? screenPrior : undefined,
+    priorScreeningLoading,
     onReviewChange: (reviewed: boolean) => {
       if (reviewed && s.sourceLabel) worklist.markReviewed(s.sourceLabel);
     },
@@ -184,134 +200,15 @@ function ScreeningApp() {
   };
 
   const studyPanel = (
-    <div className="pro-panel flex flex-col">
-      <div className="pro-panel-header flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-        <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-          {es.stepSource}
-        </h2>
-        <div className="pro-seg">
-          <button
-            type="button"
-            onClick={() => s.setTab('folder')}
-            className={`pro-seg-btn ${s.tab === 'folder' ? 'pro-seg-btn-active' : ''}`}
-          >
-            {es.tabFolder}
-          </button>
-          <button
-            type="button"
-            onClick={() => s.setTab('upload')}
-            className={`pro-seg-btn ${s.tab === 'upload' ? 'pro-seg-btn-active' : ''}`}
-          >
-            {es.tabUpload}
-          </button>
-        </div>
-      </div>
-      <div className="pro-panel-body flex flex-1 flex-col">
-        {s.tab === 'folder' ? (
-          <>
-            <FolderWorkspace
-              folder={s.folder}
-              onFolderChange={s.setFolder}
-              filterQuery={s.filterQuery}
-              onFilterChange={s.setFilterQuery}
-              imageNames={s.imageNames}
-              selectedName={s.selectedName}
-              onSelectStudy={(name) => {
-                s.selectStudy(name);
-                setMobilePanel('viewer');
-              }}
-              listLoading={s.listLoading}
-              listTruncated={s.listTruncated}
-              onPrevStudy={selectPrevStudy}
-              onNextStudy={selectNextStudy}
-              canPrevStudy={s.canPrevStudy}
-              canNextStudy={s.canNextStudy}
-              flaggedStudyName={
-                s.response?.overall_flagged ? s.selectedName : undefined
-              }
-              getWorklistStatus={worklist.getStatus}
-            />
-            <label className="mt-4 flex cursor-pointer items-center gap-2 text-xs text-[var(--text-muted)]">
-              <input
-                type="checkbox"
-                checked={s.autoAdvance}
-                onChange={(e) => s.setAutoAdvance(e.target.checked)}
-                className="rounded border-[var(--border-subtle)]"
-              />
-              {es.autoAdvanceLabel}
-            </label>
-            <button
-              type="button"
-              disabled={
-                batch.running ||
-                !resolvedFolder ||
-                imageNames.length === 0 ||
-                selected.length === 0
-              }
-              onClick={runBatch}
-              className="pro-btn-secondary mt-3 w-full"
-            >
-              {batch.running ? (
-                <>
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-teal-500/30 border-t-teal-400" />
-                  {es.batchRunning}
-                </>
-              ) : (
-                es.batchScreenFolder
-              )}
-            </button>
-            <BatchScreeningPanel
-              rows={batch.rows}
-              running={batch.running}
-              current={batch.current}
-              total={batch.total}
-              onCancel={batch.cancel}
-              onOpenRow={handleBatchOpen}
-            />
-          </>
-        ) : (
-          <UploadWorkspace file={s.file} onFile={s.onFile} />
-        )}
-        {s.tab === 'upload' && s.response && !s.previewUrl && (
-          <p className="mt-3 text-xs text-amber-600 dark:text-amber-400/90">
-            {es.uploadRestoreNoPreview}
-          </p>
-        )}
-        {s.error && (
-          <p
-            className="mt-4 rounded-lg border border-red-500/30 bg-red-950/40 px-3 py-2.5 text-sm text-red-400"
-            role="alert"
-          >
-            {s.error}
-          </p>
-        )}
-        <button
-          type="button"
-          disabled={!s.canRun || batch.running}
-          onClick={runScreening}
-          className="pro-btn-primary mt-6"
-        >
-          {s.loading ? (
-            <>
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-teal-950/30 border-t-teal-950" />
-              {es.running}
-            </>
-          ) : (
-            <>
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"
-                />
-              </svg>
-              {es.runScreening}
-            </>
-          )}
-        </button>
-      </div>
-    </div>
+    <StudySourcePanel
+      screening={s}
+      batch={batch}
+      getWorklistStatus={worklist.getStatus}
+      onRunScreening={() => void runScreening()}
+      onRunBatch={() => void runBatch()}
+      onBatchOpen={handleBatchOpen}
+      onOpenViewer={() => setMobilePanel('viewer')}
+    />
   );
 
   return (
@@ -322,6 +219,7 @@ function ScreeningApp() {
       />
 
       <div className="relative z-10 mx-auto max-w-[1600px] px-4 py-4 sm:py-6 lg:px-8">
+        <ClinicAdminPanel />
         <div className="mb-4 animate-in sm:mb-6">
           <WorkflowBar step={s.workflowStep} />
         </div>
@@ -396,9 +294,10 @@ function ScreeningApp() {
 }
 
 export default function App() {
+  const { user } = useAuth();
   return (
     <AuthGate>
-      <ScreeningApp />
+      {isPatient(user) ? <PatientPortal /> : <ScreeningApp />}
     </AuthGate>
   );
 }

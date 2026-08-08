@@ -2,68 +2,66 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
-
-const STORAGE_KEY = 'byteai-session';
-
-/** Temporary dev credentials until backend auth exists. */
-const DEV_USER = 'root';
-const DEV_PASSWORD = 'admin';
-
-export type UserSession = {
-  username: string;
-  name: string;
-};
+import {
+  fetchCurrentUser,
+  login,
+  logout,
+  type UserSession,
+} from '../api/client';
 
 type AuthContextValue = {
   user: UserSession | null;
-  signIn: (username: string, password: string) => boolean;
-  signOut: () => void;
+  loading: boolean;
+  signIn: (email: string, password: string) => Promise<boolean>;
+  signOut: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function loadSession(): UserSession | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as UserSession & { email?: string };
-    if (parsed.username) return parsed;
-    if (parsed.email) {
-      return { username: parsed.email, name: parsed.name || 'Administrador' };
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserSession | null>(loadSession);
+  const [user, setUser] = useState<UserSession | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const signIn = useCallback((username: string, password: string) => {
-    const trimmed = username.trim();
-    if (trimmed !== DEV_USER || password !== DEV_PASSWORD) return false;
-    const session: UserSession = {
-      username: trimmed,
-      name: 'Administrador',
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-    setUser(session);
-    return true;
+  const refreshUser = useCallback(async () => {
+    try {
+      setUser(await fetchCurrentUser());
+    } catch {
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const signOut = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
-    setUser(null);
+  useEffect(() => {
+    void refreshUser();
+  }, [refreshUser]);
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    try {
+      setUser(await login(email.trim(), password));
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const signOut = useCallback(async () => {
+    try {
+      await logout();
+    } finally {
+      setUser(null);
+    }
   }, []);
 
   const value = useMemo(
-    () => ({ user, signIn, signOut }),
-    [user, signIn, signOut],
+    () => ({ user, loading, signIn, signOut, refreshUser }),
+    [user, loading, signIn, signOut, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

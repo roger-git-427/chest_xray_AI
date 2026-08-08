@@ -35,15 +35,16 @@ ByteAI is a full-stack medical imaging product:
 
 ```
 chest_xray_ai/
-├── api/                 # FastAPI: main.py, registry.py, images.py, dicom_io.py
+├── alembic/             # Versioned database schema
+├── api/                 # Routers, study service, auth/RBAC, ORM, storage, ML registry
 ├── gradcam.py           # Grad-CAM overlays for ConvNeXt screening models
 ├── frontend/            # ByteAI web app
 │   └── src/
-│       ├── hooks/       # useScreening, useStudyTimeline, useBatchScreening
-│       ├── lib/         # generateScreeningPdf.ts, imageToPdfDataUrl.ts
-│       ├── components/  # layout/, workspace/, results/, ui/
+│       ├── hooks/       # Focused screening, studies, patient, navigation hooks
+│       ├── lib/         # PDF, mappers, roles, formatting, legacy storage
+│       ├── components/  # admin/, patient/, layout/, workspace/, results/, ui/
 │       ├── types/       # workspace.ts
-│       ├── context/     # Auth, Theme
+│       ├── context/     # Auth, Clinic, StudyData, Theme
 │       └── i18n/es.ts
 ├── config.py            # Paths, conditions, thresholds, hyperparameters
 ├── train.py             # Training loop
@@ -52,7 +53,8 @@ chest_xray_ai/
 ├── dataset.py, model.py, utils.py
 ├── checkpoints/         # gitignored weights
 ├── data/                # gitignored NIH images + CSV
-├── requirements-web.txt # FastAPI deps (install torch/timm separately)
+├── requirements-web.txt # Web/runtime dependencies
+├── requirements-ml.txt  # Runtime + training dependencies
 ├── README-BACKEND.md
 ├── README-FRONTEND.md
 └── README-WEB.md        # Quick start (two terminals)
@@ -80,7 +82,7 @@ Production: `npm run build` then uvicorn serves `frontend/dist` from `api/main.p
 
 ## API conventions (`/api/*`)
 - English JSON field names; Spanish only in UI layer
-- Key routes: `/health`, `/conditions`, `/settings`, `/images`, `/images/content`, `/screen`, `/screen/path`, `/study/{filename}`, `/study/{filename}/priors`
+- Key routes: `/auth/*`, `/clinics/*`, `/studies/*`, `/audit`, plus Master-only legacy folder tools
 - Image browse restricted under `data/` (see `api/images.py`); supports `.dcm`/`.dicom`
 - DICOM decode in `api/dicom_io.py`; optional `include_heatmaps=true` on screen routes
 - Grad-CAM in `gradcam.py`; attached as `heatmap_data_url` per result when requested
@@ -91,25 +93,25 @@ Production: `npm run build` then uvicorn serves `frontend/dist` from `api/main.p
 ## Frontend conventions
 - **Brand:** ByteAI in `es.productName` and header
 - **Styling:** Prefer `pro-*` classes and CSS variables in `index.css` — avoid custom Tailwind color tokens in `@apply` (breaks PostCSS)
-- **State:** Screening logic in `hooks/useScreening.ts`; auth/theme in `context/`
+- **State:** Focused screening hooks; shared clinic studies in `StudyDataContext`; auth/theme in `context/`
 - **Mobile:** `MobileNav` + tab panels on small screens; desktop uses multi-column grid
-- **Auth (UI):** Dev gate via `AuthContext` — user `root` / password `admin` (localStorage; not real backend auth yet)
-- **Timeline:** `useStudyTimeline` (localStorage `byteai-timeline-v2`, max 20; migrates from `byteai-timeline` when possible) stores full `ScreeningResponse` + folder context; click restores informe; re-export PDF from entry
+- **Auth:** FastAPI-backed revocable sessions with Master, clinic Administrator, and Patient roles; HttpOnly cookie + CSRF
+- **Timeline:** `useStudyTimeline` loads durable studies from `/api/studies`; legacy Master folder imports may remain in memory for the session
 - **Viewer:** `ImagingViewport` — zoom (wheel/buttons), pan when zoomed, invert, reset; prev/next study buttons
 - **Navigation:** Folder mode — `↑`/`↓` or `j`/`k` to change study; optional auto-advance after screening
 - **Batch:** `useBatchScreening` + `BatchScreeningPanel` — sequential `POST /api/screen/path` over folder list, progress, cancel, summary table, row opens study
 - **PDF export:** `ExportReportButton` → `generateScreeningPdf()` — report ID, study panel, triage strip, clinical notes, findings table, Grad-CAM thumbnails, detail cards, clinician signature block, footer. Pass `imageUrl`, `screenedAt`, `reportDraft`, `clinicallyReviewed`. No `window.print()`.
-- **Viewer W/L:** CSS presets in `viewportWindowLevel.ts` (not DICOM). **Clinical review:** checkbox in `ResultsDashboard` persists per study label in `localStorage` (`byteai-reviewed-*`).
+- **Viewer W/L:** CSS presets in `viewportWindowLevel.ts` (not DICOM). Clinical review persists through the study API; legacy entries use centralized localStorage helpers.
 - **Visual semantics:** Amber / `pro-priority-flagged` = derivar revisión; emerald / `pro-priority-clear` = rutina; teal accent on interactive elements and active workflow step only
-- **Worklist:** `useWorklist` (localStorage `byteai-worklist-v1`) — pending → screened → reviewed → exported; badges in `FolderWorkspace`
+- **Worklist:** Database-backed pending → screened → reviewed → exported; `useWorklist` reads clinic studies
 - **NIH metadata:** `GET /api/study/{filename}`, `GET /api/study/{filename}/priors` from CSV via `api/studies.py`; `useStudyMeta` hook
 - **Priors:** `ImagingViewport` split compare with nearest prior (same `Patient ID`, lower `Follow-up #`); `ResultsDashboard` shows probability deltas when prior was analyzed in timeline
 - **DICOM:** upload `.dcm` or browse from folder; metadata in informe; preview via `preview_data_url` after screening
 - **Heatmaps:** single-study screening requests `includeHeatmaps: true`; toggle per finding in `FindingCard`; batch skips heatmaps
-- **Report draft:** `useReportDraft` (localStorage) — impression, recommendations, clinician name → PDF via `generateScreeningPdf`
+- **Report draft:** `useReportDraft` saves persisted studies through the API and uses centralized localStorage fallback only for legacy entries.
 - **Model cards:** `model_card` on `/api/conditions`; expand in `ConditionsRail`; metrics from `checkpoints/metrics_{condition}.json` via `evaluate.py`
 - **Calibration preview:** client-side threshold sliders in `ResultsDashboard` (`calibrationPreview.ts`) — visual only
-- **Paused tracks:** Do not add production auth/Docker/CI/server-side DB unless user unpause C
+- **Persistence:** PostgreSQL/Alembic schema and private local/Azure storage are active. See `README-PERSISTENCE.md`.
 
 When adding UI copy, only edit `frontend/src/i18n/es.ts`.
 

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ScreeningResponse } from '../api/client';
+import { useStudyData } from '../context/StudyDataContext';
+import { toScreeningResponse } from '../lib/studyMappers';
 import type { WorkspaceTab } from '../types/workspace';
 
 export type TimelineEntry = {
@@ -15,67 +17,7 @@ export type TimelineEntry = {
   imageUrl?: string | null;
 };
 
-const STORAGE_KEY = 'byteai-timeline-v2';
-const LEGACY_STORAGE_KEY = 'byteai-timeline';
 const MAX_ENTRIES = 20;
-
-function normalizeEntry(raw: unknown): TimelineEntry | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const e = raw as Partial<TimelineEntry> & {
-    screeningResponse?: ScreeningResponse;
-  };
-
-  const response = e.screeningResponse;
-  if (!e.id || !e.studyLabel || !response?.results?.length) return null;
-
-  return {
-    id: e.id,
-    at: e.at ?? new Date().toISOString(),
-    studyLabel: e.studyLabel,
-    overallFlagged: Boolean(e.overallFlagged ?? response.overall_flagged),
-    findings:
-      e.findings ??
-      response.results.map((r) => ({
-        label: r.condition_label,
-        probability: r.probability,
-        flagged: r.flagged,
-      })),
-    screeningResponse: response,
-    tab: e.tab === 'upload' ? 'upload' : 'folder',
-    folder: e.folder,
-    filename: e.filename,
-    imageUrl: e.imageUrl,
-  };
-}
-
-function loadFromKey(key: string): TimelineEntry[] {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map(normalizeEntry).filter((e): e is TimelineEntry => e !== null);
-  } catch {
-    return [];
-  }
-}
-
-function load(): TimelineEntry[] {
-  const current = loadFromKey(STORAGE_KEY);
-  if (current.length > 0) return current;
-
-  const legacy = loadFromKey(LEGACY_STORAGE_KEY);
-  if (legacy.length > 0) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(legacy));
-      localStorage.removeItem(LEGACY_STORAGE_KEY);
-    } catch {
-      /* ignore quota errors */
-    }
-    return legacy;
-  }
-  return [];
-}
 
 export type TimelineAddContext = {
   tab: WorkspaceTab;
@@ -85,11 +27,34 @@ export type TimelineAddContext = {
 };
 
 export function useStudyTimeline() {
-  const [entries, setEntries] = useState<TimelineEntry[]>(load);
+  const { studies, refreshStudies } = useStudyData();
+  const [entries, setEntries] = useState<TimelineEntry[]>([]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-  }, [entries]);
+    setEntries(
+      studies
+        .filter((study) => study.results?.length)
+        .slice(0, MAX_ENTRIES)
+        .map((study) => {
+          const response = toScreeningResponse(study);
+          return {
+            id: study.id,
+            at: study.created_at,
+            studyLabel: study.filename,
+            overallFlagged: Boolean(study.overall_flagged),
+            findings: response.results.map((result) => ({
+              label: result.condition_label,
+              probability: result.probability,
+              flagged: result.flagged,
+            })),
+            screeningResponse: response,
+            tab: 'upload',
+            filename: study.filename,
+            imageUrl: study.image_url,
+          };
+        }),
+    );
+  }, [studies]);
 
   const addEntry = useCallback(
     (
@@ -98,7 +63,9 @@ export function useStudyTimeline() {
       context: TimelineAddContext,
     ) => {
       const entry: TimelineEntry = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        id:
+          response.study_id ??
+          `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         at: new Date().toISOString(),
         studyLabel,
         overallFlagged: response.overall_flagged,
@@ -113,12 +80,15 @@ export function useStudyTimeline() {
         filename: context.filename,
         imageUrl: context.imageUrl,
       };
-      setEntries((prev) => [entry, ...prev].slice(0, MAX_ENTRIES));
+      setEntries((prev) => [
+        entry,
+        ...prev.filter((item) => item.id !== entry.id),
+      ].slice(0, MAX_ENTRIES));
     },
     [],
   );
 
   const clear = useCallback(() => setEntries([]), []);
 
-  return { entries, addEntry, clear };
+  return { entries, addEntry, clear, refresh: refreshStudies };
 }

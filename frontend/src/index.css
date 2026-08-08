@@ -26,6 +26,8 @@
   --shadow-panel: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 24px 48px -24px rgba(0, 0, 0, 0.7);
   --radius-lg: 14px;
   --radius-xl: 18px;
+  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-mono: "Roboto Mono", ui-monospace, Consolas, monospace;
 }
 
 @layer base {
@@ -40,9 +42,21 @@
     margin: 0;
     background: var(--bg-deep);
     color: var(--text-secondary);
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'zero' 0;
+    font-variant-numeric: lining-nums;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre,
+  .font-mono {
+    font-family: var(--font-mono) !important;
+    font-feature-settings: 'zero' 0, 'ss01' 0;
+    font-variant-numeric: lining-nums tabular-nums;
   }
 
   ::selection {
@@ -416,7 +430,8 @@
   }
 
   .pro-tabular {
-    font-variant-numeric: tabular-nums;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: 'zero' 0;
   }
 
   .pro-priority-flagged {

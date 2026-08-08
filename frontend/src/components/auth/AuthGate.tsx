@@ -4,16 +4,23 @@ import { useAuth } from '../../context/AuthContext';
 import { es } from '../../i18n/es';
 
 export function AuthGate({ children }: { children: ReactNode }) {
-  const { user, signIn } = useAuth();
+  const { user, loading, signIn } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  if (loading) {
+    return (
+      <div className="pro-shell flex min-h-screen items-center justify-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-teal-500/20 border-t-teal-400" />
+      </div>
+    );
+  }
   if (user) return <>{children}</>;
 
-  const onSubmit = (e: FormEvent) => {
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (signIn(username, password)) {
+    if (await signIn(username, password)) {
       setError(null);
       return;
     }
@@ -44,8 +51,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
               </label>
               <input
                 id="auth-username"
-                type="text"
-                autoComplete="username"
+                type="email"
+                autoComplete="email"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="pro-input font-mono"

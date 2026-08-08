@@ -48,6 +48,12 @@ export function AppHeader({ modelsActive, overallFlagged }: Props) {
             {es.statusModels.replace('{n}', String(modelsActive))}
           </span>
 
+          {user && (
+            <span className="hidden rounded-full border border-[var(--border-subtle)] px-3 py-1.5 text-xs text-[var(--text-muted)] lg:inline">
+              {user.name} · {user.role}
+            </span>
+          )}
+
           <button
             type="button"
             onClick={toggleTheme}

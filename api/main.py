@@ -4,17 +4,22 @@ import io
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import config
+from api.audit_router import router as audit_router
+from api.auth_router import router as auth_router
+from api.clinic_router import router as clinic_router
 from api.dicom_io import encode_preview_data_url, is_dicom_file, load_image_bytes, load_image_path
 from api.images import list_images, resolve_image_file
 from api.model_cards import build_model_card
 from api.registry import loaded_conditions, preload, screen_image
+from api.security import Principal, get_principal, require_master
+from api.study_router import router as persistent_study_router
 from api.studies import get_priors, get_study, metadata_available
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -46,6 +51,11 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
+app.include_router(auth_router)
+app.include_router(clinic_router)
+app.include_router(persistent_study_router)
+app.include_router(audit_router)
+
 
 @app.get('/api/health')
 def health():
@@ -53,7 +63,7 @@ def health():
 
 
 @app.get('/api/settings')
-def app_settings():
+def app_settings(_principal: Principal = Depends(get_principal)):
     return {
         'default_image_dir': config.IMAGE_DIR,
         'max_list': 500,
@@ -64,6 +74,7 @@ def app_settings():
 def get_image_list(
     folder: str = Query(default=None),
     q: str = Query(default=''),
+    _principal: Principal = Depends(require_master),
 ):
     target = folder or config.IMAGE_DIR
     return list_images(target, q)
@@ -73,6 +84,7 @@ def get_image_list(
 def get_image_content(
     folder: str = Query(...),
     name: str = Query(...),
+    _principal: Principal = Depends(require_master),
 ):
     path = resolve_image_file(folder, name)
     if is_dicom_file(name):
@@ -93,6 +105,7 @@ def screen_from_path(
     body: ScreenPathBody,
     conditions: list[str] = Query(default=[]),
     include_heatmaps: bool = Query(default=False),
+    _principal: Principal = Depends(require_master),
 ):
     available = config.available_screening_conditions()
     if not available:
@@ -123,7 +136,10 @@ def screen_from_path(
 
 
 @app.get('/api/study/{filename}')
-def study_metadata(filename: str):
+def study_metadata(
+    filename: str,
+    _principal: Principal = Depends(require_master),
+):
     if not metadata_available():
         raise HTTPException(404, 'NIH metadata CSV not found')
     meta = get_study(filename)
@@ -133,14 +149,17 @@ def study_metadata(filename: str):
 
 
 @app.get('/api/study/{filename}/priors')
-def study_priors(filename: str):
+def study_priors(
+    filename: str,
+    _principal: Principal = Depends(require_master),
+):
     if not metadata_available():
         return {'priors': []}
     return {'priors': get_priors(filename)}
 
 
 @app.get('/api/conditions')
-def list_conditions():
+def list_conditions(_principal: Principal = Depends(get_principal)):
     """Return screening conditions for the UI (English ids, Spanish labels)."""
     items = []
     for condition in config.SCREENING_CONDITIONS:
@@ -161,6 +180,7 @@ async def screen(
     file: UploadFile = File(...),
     conditions: list[str] = Query(default=[]),
     include_heatmaps: bool = Query(default=False),
+    _principal: Principal = Depends(require_master),
 ):
     dicom = is_dicom_file(file.filename, file.content_type)
     if not dicom and file.content_type and not file.content_type.startswith('image/'):

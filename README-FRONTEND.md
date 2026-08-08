@@ -11,21 +11,23 @@
 The UI supports two workflows:
 
 1. **Desde carpeta** — Browse images on disk (default NIH folder), filter by filename, preview, run screening.
-2. **Subir archivo** — Upload a PNG/JPG and run screening.
+2. **Subir archivo** — Upload a PNG/JPG/DICOM (`.dcm`) and run screening.
 
 Users select which trained **conditions** to evaluate (sidebar). Results show per-condition probability, threshold, flagged status, and recommendations.
 
 ### Platform features
-- **Auth** — Login gate (dev: user `root`, password `admin`)
+- **Auth** — Backend sessions with Master, clinic Administrator, and Patient roles
 - **Themes** — Dark / light toggle in header
-- **Timeline** — Recent analyses (localStorage `byteai-timeline-v2`, max 20); click entry to restore informe; re-download PDF
-- **Worklist** — Per-study status badges (pendiente → analizado → revisado → exportado) in folder list (`byteai-worklist-v1`)
+- **Timeline** — Server-backed clinic/patient study history; click an entry to restore the informe
+- **Worklist** — Database-backed status (pendiente → analizado → revisado → exportado)
 - **NIH metadata** — Patient age/sex/view/follow-up from CSV via `/api/study/{filename}`; shown in viewer + informe
-- **Priors** — Side-by-side compare with most recent prior CXR (same patient ID)
-- **Viewer** — Zoom, pan, invert, window presets; prev/next study in folder mode
+- **DICOM** — Upload or browse `.dcm`; metadata panel in informe; preview via `preview_data_url` after screening
+- **Priors** — Side-by-side compare with most recent prior CXR; **Analizar estudio previo** button runs prior screening for delta comparison
+- **Grad-CAM** — Heatmap overlays on single-study screening; toggle in viewer and finding cards; embedded in PDF export
+- **Viewer** — Zoom, pan, invert, window presets, heatmap overlay; prev/next study in folder mode
 - **Navigation** — Keyboard `↑`/`↓` or `j`/`k` between studies (folder tab); optional auto-advance after screening
 - **Batch** — “Analizar carpeta” runs screening on all listed images with progress, cancel, and summary table
-- **Export** — PDF with thumbnail, editable impression/recommendations/clinician name, findings table
+- **Export** — PDF with report ID, thumbnail, DICOM/NIH metadata, clinical notes, findings table, Grad-CAM thumbnails, signature block
 - **Model cards** — Per-condition architecture, AUC, calibration table (from `evaluate.py` → `metrics_*.json`)
 - **Calibration preview** — Client-side threshold sliders (visual only; does not re-run model)
 - **Clinical visual language** — Priority stripes, tabular probabilities, header triage chip when flagged
@@ -43,7 +45,8 @@ Users select which trained **conditions** to evaluate (sidebar). Results show pe
 | Tailwind CSS | 3 — styling |
 | PostCSS + Autoprefixer | CSS pipeline |
 
-No routing library — single-page `App.tsx`.
+No routing library — role-gated single-page shell in `App.tsx`
+(Master/Admin workbench vs Patient portal).
 
 ---
 
@@ -60,14 +63,16 @@ frontend/
     ├── main.tsx            # React entry
     ├── index.css           # Tailwind layers + component classes
     ├── App.tsx
-    ├── hooks/              # useScreening, useStudyTimeline, useBatchScreening
-    ├── lib/                # generateScreeningPdf, imageToPdfDataUrl
+    ├── hooks/              # Focused screening, timeline, worklist, patient, and navigation hooks
+    ├── lib/                # PDF, mappers, formatting, roles, legacy storage
     ├── types/              # workspace.ts (WorkspaceTab)
-    ├── context/            # AuthContext, ThemeContext
+    ├── context/            # Auth, clinic selection, shared studies, theme
     ├── api/client.ts
     ├── i18n/es.ts
     └── components/
         ├── auth/           # AuthGate
+        ├── admin/          # Clinic and account management
+        ├── patient/        # Read-only patient portal
         ├── layout/         # AppHeader, MobileNav, StudyTimeline, …
         ├── workspace/      # FolderWorkspace, ImagingViewport, BatchScreeningPanel, …
         ├── results/        # ResultsDashboard, ExportReportButton, …
@@ -85,7 +90,7 @@ The UI was redesigned for a **dark, clinical, tech-forward** look:
 | **Background** | Deep navy (`surface-900`) + cyan mesh gradients (`bg-mesh`) + subtle grid overlay |
 | **Panels** | Glass-style cards (`.glass-panel`) — blur, light border, inset highlight |
 | **Accent** | Cyan/teal (`accent`, `accent-dim`, `accent-glow`) for actions and focus |
-| **Typography** | Plus Jakarta Sans (UI), JetBrains Mono (metrics, paths, thresholds) |
+| **Typography** | Plus Jakarta Sans (UI), Roboto Mono (metrics, paths, thresholds — plain zeros) |
 | **Status** | Emerald = below threshold; amber = flagged for review |
 | **Motion** | `animate-fade-in` on results; pulse on status dots; spinners while loading |
 
@@ -115,12 +120,19 @@ All requests use `API_BASE` = `import.meta.env.VITE_API_URL ?? ''` (empty in dev
 
 | Function | Backend route |
 |----------|----------------|
+| `login()` / `logout()` / `fetchCurrentUser()` | `/api/auth/*` |
+| `fetchClinics()` / `createClinic()` | `/api/clinics` |
+| `fetchClinicMembers()` / `createClinicMember()` | `/api/clinics/{id}/members` |
+| `fetchPersistedStudies()` | `GET /api/studies` |
+| `savePersistedReport()` / `reviewPersistedStudy()` | `/api/studies/{id}/*` |
 | `fetchSettings()` | `GET /api/settings` |
 | `fetchConditions()` | `GET /api/conditions` |
 | `fetchImageList(folder, query)` | `GET /api/images` |
 | `imageContentUrl(folder, name)` | `GET /api/images/content` |
-| `screenImageFromPath(...)` | `POST /api/screen/path` |
-| `screenImage(file, conditions)` | `POST /api/screen` |
+| `fetchStudyMetadata(filename)` | `GET /api/study/{filename}` |
+| `fetchStudyPriors(filename)` | `GET /api/study/{filename}/priors` |
+| `screenImageFromPath(...)` | Persistent `/api/studies/screen/path` with clinic; legacy `/api/screen/path` otherwise |
+| `screenImage(file, conditions, clinicId)` | `POST /api/studies/screen` |
 
 Types: `ConditionInfo`, `ScreeningResult`, `ScreeningResponse`, `ImageListResponse`, `AppSettings`.
 
@@ -160,21 +172,27 @@ Ignored when focus is in an input field.
 
 ### `ResultsDashboard`
 
-- Empty state when no screening has run.
-- Clinician summary line (study + overall status).
-- **Confirmar revisión** checkbox — session-local `localStorage` per study filename.
-- `ExportReportButton` → `generateScreeningPdf` (thumbnail, findings table, detail cards, screened conditions in footer).
+- Empty state when no screening has run; clinician summary line (study + overall status).
+- DICOM and NIH metadata panels.
+- Prior probability deltas when prior was screened in session; **Analizar estudio previo** button if not yet screened.
+- **Confirmar revisión** finalizes the server-backed report with reviewer and timestamp.
+- Editable impression, recommendations, clinician name (`useReportDraft`).
+- Calibration preview sliders (visual only).
+- `ExportReportButton` → full PDF export with clinical context.
 - Overall status banner and per-condition `FindingCard` grid.
 
 ### `FindingCard`
 
 - Condition title, flagged badge, probability bar with threshold marker.
+- Optional Grad-CAM thumbnail toggle per finding.
 - Spanish recommendation and model-signal disclaimer.
 
 ### `ImagingViewport`
 
 - PACS-style viewer: zoom (wheel/buttons), pan when zoomed, invert, reset.
 - **Window presets** (client-side CSS approximations): Estándar, Pulmón, Hueso, Mediastino — see `viewportWindowLevel.ts`.
+- **Grad-CAM overlay** — toggle heatmap on the study image; switch layer when multiple conditions screened.
+- **Prior compare** — side-by-side with most recent NIH prior (folder mode).
 - Footer strip: source kind + screened timestamp when available.
 - Prev/next study controls (folder tab only).
 
@@ -184,7 +202,7 @@ Ignored when focus is in an input field.
 
 ### `StudyTimeline`
 
-- Persists last 20 analyses (`byteai-timeline-v2`); click to restore; re-export PDF.
+- Persists last 20 analyses (`byteai-timeline-v2`); click to restore; re-export PDF with same fields as main export (draft, metadata, review badge).
 
 ---
 

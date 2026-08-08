@@ -1,10 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { PriorStudy, ScreeningResponse, StudyMetadata } from '../../api/client';
+import {
+  markPersistedStudyExported,
+  reviewPersistedStudy,
+  type PriorStudy,
+  type ScreeningResponse,
+  type StudyMetadata,
+} from '../../api/client';
 import { useReportDraft } from '../../hooks/useReportDraft';
 import { applyThresholdPreview } from '../../lib/calibrationPreview';
+import {
+  isLegacyStudyReviewed,
+  writeLegacyStudyReviewed,
+} from '../../lib/legacyClinicalStorage';
 import { es } from '../../i18n/es';
 import { ExportReportButton } from './ExportReportButton';
 import { FindingCard } from './FindingCard';
+import { ClinicalReportEditor } from './ClinicalReportEditor';
+import { PriorComparisonPanel } from './PriorComparisonPanel';
+import { StudyMetadataPanel } from './StudyMetadataPanel';
 
 type Props = {
   response: ScreeningResponse | null;
@@ -15,13 +28,11 @@ type Props = {
   metadata?: StudyMetadata | null;
   priorStudy?: PriorStudy | null;
   priorScreening?: ScreeningResponse | null;
+  onScreenPrior?: () => void;
+  priorScreeningLoading?: boolean;
   onReviewChange?: (reviewed: boolean) => void;
   onExportSuccess?: () => void;
 };
-
-function reviewStorageKey(sourceLabel: string) {
-  return `byteai-reviewed-${sourceLabel}`;
-}
 
 export function ResultsDashboard({
   response,
@@ -32,13 +43,19 @@ export function ResultsDashboard({
   metadata,
   priorStudy,
   priorScreening,
+  onScreenPrior,
+  priorScreeningLoading,
   onReviewChange,
   onExportSuccess,
 }: Props) {
   const [exportNotice, setExportNotice] = useState(false);
   const [clinicallyReviewed, setClinicallyReviewed] = useState(false);
   const [thresholdOverrides, setThresholdOverrides] = useState<Record<string, number>>({});
-  const { draft, updateField } = useReportDraft(sourceLabel);
+  const { draft, updateField } = useReportDraft(
+    sourceLabel,
+    response?.study_id,
+    response?.report,
+  );
 
   useEffect(() => {
     if (!sourceLabel) {
@@ -46,9 +63,10 @@ export function ResultsDashboard({
       return;
     }
     setClinicallyReviewed(
-      window.localStorage.getItem(reviewStorageKey(sourceLabel)) === '1',
+      response?.report?.status === 'final' ||
+        isLegacyStudyReviewed(sourceLabel),
     );
-  }, [sourceLabel]);
+  }, [sourceLabel, response?.report?.status]);
 
   useEffect(() => {
     setThresholdOverrides({});
@@ -64,13 +82,33 @@ export function ResultsDashboard({
     };
   }, [response, thresholdOverrides]);
 
-  const toggleClinicalReview = () => {
+  const priorComparison = useMemo(() => {
+    if (!displayResponse || !priorScreening) return [];
+    return displayResponse.results
+      .map((r) => {
+        const prior = priorScreening.results.find((p) => p.condition === r.condition);
+        if (!prior) return null;
+        const delta = r.probability - prior.probability;
+        return {
+          condition: r.condition_label,
+          current: r.probability,
+          prior: prior.probability,
+          delta,
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+  }, [displayResponse, priorScreening]);
+
+  const toggleClinicalReview = async () => {
     if (!sourceLabel) return;
-    const key = reviewStorageKey(sourceLabel);
     const next = !clinicallyReviewed;
+    if (response?.study_id && next) {
+      await reviewPersistedStudy(response.study_id);
+    }
     setClinicallyReviewed(next);
-    if (next) window.localStorage.setItem(key, '1');
-    else window.localStorage.removeItem(key);
+    if (!response?.study_id) {
+      writeLegacyStudyReviewed(sourceLabel, next);
+    }
     onReviewChange?.(next);
   };
 
@@ -113,6 +151,9 @@ export function ResultsDashboard({
               clinicallyReviewed={clinicallyReviewed}
               onSuccess={() => {
                 setExportNotice(true);
+                if (response?.study_id) {
+                  void markPersistedStudyExported(response.study_id);
+                }
                 onExportSuccess?.();
                 window.setTimeout(() => setExportNotice(false), 3000);
               }}
@@ -125,97 +166,22 @@ export function ResultsDashboard({
       </div>
 
       <div className="pro-panel-body">
-        {displayResponse?.is_dicom && displayResponse.dicom_metadata && (
-          <div className="mb-4 grid gap-2 rounded-lg border border-teal-500/20 bg-teal-500/5 p-3 text-xs sm:grid-cols-2">
-            <p className="sm:col-span-2 text-[10px] font-semibold uppercase tracking-wider text-teal-600 dark:text-teal-400">
-              {es.dicomMetaTitle}
-            </p>
-            {displayResponse.dicom_metadata.patient_id && (
-              <p><span className="text-[var(--text-faint)]">{es.studyMetaPatient}:</span> {displayResponse.dicom_metadata.patient_id}</p>
-            )}
-            {displayResponse.dicom_metadata.patient_age && (
-              <p><span className="text-[var(--text-faint)]">{es.studyMetaAge}:</span> {displayResponse.dicom_metadata.patient_age}</p>
-            )}
-            {displayResponse.dicom_metadata.patient_sex && (
-              <p><span className="text-[var(--text-faint)]">{es.studyMetaGender}:</span> {displayResponse.dicom_metadata.patient_sex}</p>
-            )}
-            {displayResponse.dicom_metadata.view_position && (
-              <p><span className="text-[var(--text-faint)]">{es.studyMetaView}:</span> {displayResponse.dicom_metadata.view_position}</p>
-            )}
-            {displayResponse.dicom_metadata.study_date && (
-              <p><span className="text-[var(--text-faint)]">{es.dicomStudyDate}:</span> {displayResponse.dicom_metadata.study_date}</p>
-            )}
-            {displayResponse.dicom_metadata.modality && (
-              <p><span className="text-[var(--text-faint)]">{es.dicomModality}:</span> {displayResponse.dicom_metadata.modality}</p>
-            )}
-          </div>
+        {displayResponse && (
+          <StudyMetadataPanel
+            response={displayResponse}
+            metadata={metadata}
+            sourceLabel={sourceLabel}
+          />
         )}
 
-        {displayResponse && metadata && (
-          <div className="mb-4 grid gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3 text-xs sm:grid-cols-2">
-            {metadata.patient_id && (
-              <p><span className="text-[var(--text-faint)]">{es.studyMetaPatient}:</span> {metadata.patient_id}</p>
-            )}
-            {metadata.age && (
-              <p><span className="text-[var(--text-faint)]">{es.studyMetaAge}:</span> {metadata.age}</p>
-            )}
-            {metadata.gender && (
-              <p><span className="text-[var(--text-faint)]">{es.studyMetaGender}:</span> {metadata.gender}</p>
-            )}
-            {metadata.view_position && (
-              <p><span className="text-[var(--text-faint)]">{es.studyMetaView}:</span> {metadata.view_position}</p>
-            )}
-            {metadata.finding_labels && (
-              <p className="sm:col-span-2">
-                <span className="text-[var(--text-faint)]">{es.studyMetaFindings}:</span>{' '}
-                <span className="text-[var(--text-muted)]">{metadata.finding_labels}</span>
-              </p>
-            )}
-          </div>
-        )}
-
-        {displayResponse && !metadata && !displayResponse.is_dicom && sourceLabel && (
-          <p className="mb-4 text-xs text-[var(--text-faint)]">{es.studyMetaUnavailable}</p>
-        )}
-
-        {displayResponse && priorStudy && priorComparison.length > 0 && (
-          <div className="mb-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-faint)]">
-              {es.priorComparisonTitle}
-            </p>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">
-              {es.priorComparisonVs.replace('{study}', priorStudy.filename)}
-            </p>
-            <div className="mt-3 space-y-2">
-              {priorComparison.map((row) => {
-                const deltaPct = Math.round(row.delta * 100);
-                const sign = deltaPct > 0 ? '+' : '';
-                return (
-                  <div key={row.condition} className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <span className="text-[var(--text-secondary)]">{row.condition}</span>
-                    <span className="pro-tabular font-mono text-[var(--text-muted)]">
-                      {Math.round(row.prior * 100)}% → {Math.round(row.current * 100)}%
-                      <span
-                        className={`ml-2 font-semibold ${
-                          deltaPct > 0
-                            ? 'text-amber-600 dark:text-amber-400'
-                            : deltaPct < 0
-                              ? 'text-emerald-600 dark:text-emerald-400'
-                              : 'text-[var(--text-faint)]'
-                        }`}
-                      >
-                        ({sign}{deltaPct}%)
-                      </span>
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {displayResponse && priorStudy && !priorScreening && (
-          <p className="mb-4 text-xs text-[var(--text-faint)]">{es.priorComparisonUnavailable}</p>
+        {displayResponse && priorStudy && (
+          <PriorComparisonPanel
+            priorStudy={priorStudy}
+            rows={priorComparison}
+            hasPriorScreening={Boolean(priorScreening)}
+            onScreenPrior={onScreenPrior}
+            loading={priorScreeningLoading}
+          />
         )}
 
         {displayResponse && !imageUrl && sourceKind === es.pdfSourceUpload && (
@@ -247,50 +213,13 @@ export function ResultsDashboard({
 
         {displayResponse && (
           <div className="space-y-3">
-            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-3 py-2.5">
-              <input
-                type="checkbox"
-                checked={clinicallyReviewed}
-                onChange={toggleClinicalReview}
-                disabled={!sourceLabel}
-                className="mt-0.5 h-4 w-4 rounded border-[var(--border-default)] text-teal-600 focus:ring-teal-500/40"
-              />
-              <span className="text-xs leading-snug text-[var(--text-secondary)]">
-                {clinicallyReviewed ? es.confirmReviewDone : es.confirmReview}
-              </span>
-            </label>
-
-            <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-faint)]">
-                {es.reportImpression}
-              </p>
-              <textarea
-                value={draft.impression}
-                onChange={(e) => updateField('impression', e.target.value)}
-                placeholder={es.reportImpressionPlaceholder}
-                rows={2}
-                className="pro-input w-full resize-y text-xs"
-              />
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-faint)]">
-                {es.reportRecommendations}
-              </p>
-              <textarea
-                value={draft.recommendations}
-                onChange={(e) => updateField('recommendations', e.target.value)}
-                placeholder={es.reportRecommendationsPlaceholder}
-                rows={2}
-                className="pro-input w-full resize-y text-xs"
-              />
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-faint)]">
-                {es.reportClinician}
-              </p>
-              <input
-                type="text"
-                value={draft.clinicianName}
-                onChange={(e) => updateField('clinicianName', e.target.value)}
-                className="pro-input w-full text-xs"
-              />
-            </div>
+            <ClinicalReportEditor
+              draft={draft}
+              reviewed={clinicallyReviewed}
+              disabled={!sourceLabel}
+              onReview={() => void toggleClinicalReview()}
+              onChange={updateField}
+            />
 
             <div className="rounded-lg border border-[var(--border-subtle)] bg-black/10 p-3">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-faint)]">

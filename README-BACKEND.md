@@ -24,9 +24,18 @@ Python backend for training, evaluation, and serving **ByteAI** chest X-ray scre
 ```
 chest_xray_ai/
 ├── api/
-│   ├── main.py       # FastAPI app, routes, CORS, static UI mount
-│   ├── registry.py   # Model cache, preload, multi-condition screening
-│   └── images.py     # Safe folder listing and image file serving
+│   ├── main.py              # App wiring and legacy Master tools
+│   ├── *_router.py          # Auth, clinics, studies, and audit HTTP adapters
+│   ├── study_service.py     # Shared transaction-oriented screening workflow
+│   ├── study_serializers.py # Canonical persisted-study API payloads
+│   ├── models.py            # SQLAlchemy multi-clinic schema
+│   ├── database.py          # Engine and request sessions
+│   ├── security.py          # Sessions, CSRF, and RBAC
+│   ├── storage.py           # Private local/Azure file abstraction
+│   ├── registry.py          # Model cache and multi-condition screening
+│   └── images.py            # Safe Master folder tools
+├── alembic/                 # Versioned database migrations
+├── tests/                   # Security, workflow, and migration tests
 ├── config.py         # Central configuration
 ├── dataset.py        # NIH dataset, transforms, DataLoaders
 ├── model.py          # Architecture, loss, optimizer, scheduler
@@ -35,7 +44,8 @@ chest_xray_ai/
 ├── inference.py      # CLI + shared predict/load helpers
 ├── utils.py          # Seeds, directories
 ├── app.py            # Legacy Streamlit (deprecated)
-├── requirements-web.txt   # FastAPI stack only
+├── requirements-web.txt   # Web/runtime dependencies
+├── requirements-ml.txt    # Runtime + training dependencies
 └── checkpoints/      # Trained weights (gitignored)
 ```
 
@@ -87,8 +97,7 @@ Use a virtual environment at the project root:
 ```powershell
 cd c:\Users\cheli\Documents\chest_xray_ai
 python -m venv .venv
-.\.venv\Scripts\pip install -r requirements-web.txt
-.\.venv\Scripts\pip install torch timm pandas scikit-learn numpy tqdm
+.\.venv\Scripts\pip install -r requirements-ml.txt
 ```
 
 ### Run
@@ -119,6 +128,10 @@ Saves use **`_use_new_zipfile_serialization=False`** so weights stay as a **sing
 ### Startup
 
 Models are **preloaded** on startup via `lifespan` → `api.registry.preload()`. Only conditions with existing `best_model_*.pth` files are loaded into an in-memory cache.
+
+The database schema is initialized for local development at startup. Production
+deployments must apply Alembic migrations first. See
+`README-PERSISTENCE.md`.
 
 ### Run (development)
 
@@ -154,12 +167,23 @@ Base path: `/api`
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/health` | Status + list of loaded model condition IDs |
+| `POST` | `/api/auth/login` | Create a revocable cookie session |
+| `GET` | `/api/auth/me` | Current user, role, and clinic memberships |
+| `POST` | `/api/auth/logout` | Revoke current session |
+| `GET/POST` | `/api/clinics` | Accessible clinics / Master clinic creation |
+| `GET/POST` | `/api/clinics/{id}/members` | Clinic members / assignment |
+| `GET` | `/api/studies?clinic_id=` | Tenant-scoped durable study history |
+| `POST` | `/api/studies/screen` | Upload, persist, screen, and create report draft |
+| `GET` | `/api/studies/{id}` | Authorized study detail |
+| `GET` | `/api/studies/{id}/image` | Authenticated private image |
+| `PUT` | `/api/studies/{id}/report` | Save clinical report draft |
+| `POST` | `/api/studies/{id}/review` | Finalize report and reviewer audit |
 | `GET` | `/api/settings` | `default_image_dir`, `max_list` |
 | `GET` | `/api/conditions` | All `SCREENING_CONDITIONS` with Spanish labels, thresholds, `available` flag |
 | `GET` | `/api/images?folder=&q=` | List image filenames (max 500), optional name filter |
 | `GET` | `/api/images/content?folder=&name=` | Serve one image file |
-| `POST` | `/api/screen` | Multipart upload + `conditions` query params |
-| `POST` | `/api/screen/path` | JSON `{ folder, filename }` + `conditions` query params |
+| `POST` | `/api/screen` | Legacy Master-only, non-persistent upload |
+| `POST` | `/api/screen/path` | Master-only NIH/local development screening |
 
 ### Screening response (example)
 
@@ -231,7 +255,7 @@ Expected when healthy: `['Cardiomegaly', 'Effusion']` (or whichever weights exis
 
 | File | Packages |
 |------|----------|
-| `requirements-web.txt` | `fastapi`, `uvicorn`, `python-multipart`, `Pillow` |
+| `requirements-web.txt` | FastAPI, SQLAlchemy, Alembic, psycopg, Argon2, pydicom, Azure Blob client |
 | Training / inference | `torch`, `timm`, `pandas`, `scikit-learn`, `numpy`, `tqdm` (install separately) |
 
 ---

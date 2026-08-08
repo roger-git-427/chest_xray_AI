@@ -1,27 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { WorklistStatus } from '../api/client';
+import { useStudyData } from '../context/StudyDataContext';
 
-export type WorklistStatus = 'pending' | 'screened' | 'reviewed' | 'exported';
+export type { WorklistStatus } from '../api/client';
 
 export type WorklistEntry = {
   status: WorklistStatus;
   updatedAt: string;
 };
-
-const STORAGE_KEY = 'byteai-worklist-v1';
-
-function readStore(): Record<string, WorklistEntry> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    return JSON.parse(raw) as Record<string, WorklistEntry>;
-  } catch {
-    return {};
-  }
-}
-
-function writeStore(store: Record<string, WorklistEntry>) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-}
 
 function statusRank(status: WorklistStatus): number {
   switch (status) {
@@ -37,11 +23,24 @@ function statusRank(status: WorklistStatus): number {
 }
 
 export function useWorklist() {
-  const [entries, setEntries] = useState<Record<string, WorklistEntry>>(readStore);
+  const { studies } = useStudyData();
+  const [entries, setEntries] = useState<Record<string, WorklistEntry>>({});
 
   useEffect(() => {
-    writeStore(entries);
-  }, [entries]);
+    setEntries((current) =>
+      Object.fromEntries(
+        studies.map((study) => {
+          const local = current[study.filename];
+          return [
+            study.filename,
+            local && statusRank(local.status) > statusRank(study.status)
+              ? local
+              : { status: study.status, updatedAt: study.created_at },
+          ];
+        }),
+      ),
+    );
+  }, [studies]);
 
   const getStatus = useCallback(
     (filename: string): WorklistStatus => entries[filename]?.status ?? 'pending',

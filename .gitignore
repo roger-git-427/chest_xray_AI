@@ -20,6 +20,14 @@ frontend/dist/
 # Environment
 .env
 .env.*
+!.env.example
+
+# Local persistence
+byteai-dev.db
+byteai-dev.db-*
+*.db
+*.db-journal
+.byteai-storage/
 
 # Jupyter
 .ipynb_checkpoints/

@@ -14,6 +14,7 @@
 | **Workflow** | Browse a local image folder or upload PNG/JPG/DICOM; batch folder screening with progress and summary |
 | **Viewer** | PACS-style viewport — zoom, pan, invert, window presets, prior side-by-side, prev/next study navigation |
 | **Results** | Triage informe, NIH/DICOM metadata, prior probability deltas, timeline, polished PDF with heatmaps and signature block |
+| **Platform** | PostgreSQL-backed clinics, Master/Administrator/Patient roles, private study storage, reports, and audit history |
 | **UX** | Spanish UI copy; dark/light theme; keyboard shortcuts (`↑`/`↓` or `j`/`k`); mobile-friendly layout |
 
 **Code and APIs are in English.** User-facing labels are in Spanish (`frontend/src/i18n/es.ts`).
@@ -25,7 +26,8 @@
 | Layer | Technologies |
 |-------|----------------|
 | **ML** | PyTorch, [timm](https://github.com/huggingface/pytorch-image-models), ConvNeXt-Tiny |
-| **API** | FastAPI, uvicorn, Pillow, pydicom |
+| **API** | FastAPI, uvicorn, Pillow, pydicom, SQLAlchemy, Alembic |
+| **Auth / tenancy** | Argon2id passwords, HttpOnly sessions, CSRF, Master / Admin / Patient roles |
 | **UI** | React 18, TypeScript, Vite 5, Tailwind CSS |
 | **Reports** | jsPDF (client-side PDF download) |
 
@@ -46,12 +48,29 @@ The legacy **Streamlit** app (`app.py`) is deprecated; use the React + FastAPI s
 # From the repository root
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install torch timm  # install versions appropriate for your CUDA/CPU setup
-pip install -r requirements-web.txt
+pip install -r requirements-ml.txt
 
 cd frontend
 npm install
 ```
+
+### First-time database and Master account
+
+SQLite is the default local database (`byteai-dev.db`). Do not leave
+`DATABASE_URL` pointing at a temporary migration test file.
+
+```powershell
+# From the repository root, with venv activated
+Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+.\.venv\Scripts\python -m alembic upgrade head
+
+$env:BYTEAI_MASTER_EMAIL="you@example.com"
+$env:BYTEAI_MASTER_PASSWORD="use-a-long-random-password"
+$env:BYTEAI_MASTER_NAME="Your Name"
+.\.venv\Scripts\python -m api.seed_master
+```
+
+Full PostgreSQL / Azure guidance: [README-PERSISTENCE.md](README-PERSISTENCE.md).
 
 ### Development
 
@@ -62,7 +81,8 @@ npm install
 npm run dev:all
 ```
 
-Starts API (port **8001**) and frontend (port **5173**) together. Open **http://localhost:5173**. Default dev login: user `root`, password `admin`.
+Starts API (port **8001**) and frontend (port **5173**) together. Open
+**http://localhost:5173** and sign in with the seeded Master email/password.
 
 Or use two terminals — see [README-WEB.md](README-WEB.md).
 
@@ -85,8 +105,12 @@ Full setup details: [README-WEB.md](README-WEB.md).
 
 ```
 chest_xray_ai/
-├── api/                    # FastAPI routes, model registry, image serving
+├── alembic/                # Versioned database schema
+├── api/                    # FastAPI routers, services, auth, DB, storage
 ├── frontend/               # ByteAI React app
+├── tests/                  # Authorization, workflow, and migration tests
+├── scripts/                # Utility scripts (e.g. investor pitch PDF)
+├── docs/                   # Generated drafts and notes
 ├── config.py               # Paths, conditions, thresholds, training hyperparameters
 ├── train.py                # Training loop
 ├── evaluate.py             # Test-set metrics
@@ -94,9 +118,13 @@ chest_xray_ai/
 ├── dataset.py, model.py, utils.py
 ├── checkpoints/            # Trained weights (gitignored)
 ├── data/                   # NIH images + CSV (gitignored)
+├── requirements-web.txt    # API / web runtime
+├── requirements-ml.txt     # Runtime + training
+├── requirements-dev.txt    # Tests
 ├── README-BACKEND.md       # Training, inference, API reference
 ├── README-FRONTEND.md      # UI architecture and components
-└── README-WEB.md           # Web quick start
+├── README-PERSISTENCE.md   # Database, roles, storage, Azure
+└── README-WEB.md           # Authoritative run instructions
 ```
 
 ---
@@ -119,10 +147,8 @@ This repository does **not** ship patient images or model weights.
 
 ## Adding a screening condition
 
-1. `python train.py --condition <Name>`
-2. Add `<Name>` to `SCREENING_CONDITIONS` in `config.py`
-3. Add Spanish label in `CONDITION_LABEL_ES` and threshold in `REVIEW_THRESHOLDS`
-4. Restart the API
+The authoritative training, evaluation, and condition-registration steps are in
+[README-BACKEND.md](README-BACKEND.md).
 
 ---
 
@@ -133,6 +159,7 @@ This repository does **not** ship patient images or model weights.
 | [README-WEB.md](README-WEB.md) | Dev vs production, ports, new conditions |
 | [README-BACKEND.md](README-BACKEND.md) | Training, evaluation, inference CLI, API |
 | [README-FRONTEND.md](README-FRONTEND.md) | Components, hooks, PDF export, i18n |
+| [README-PERSISTENCE.md](README-PERSISTENCE.md) | PostgreSQL, roles, storage, migrations, security, and Azure |
 
 ---
 

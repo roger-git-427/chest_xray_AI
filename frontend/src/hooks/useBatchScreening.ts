@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { screenImageFromPath, type ScreeningResponse } from '../api/client';
+import { useClinic } from '../context/ClinicContext';
 
 export type BatchRow = {
   filename: string;
@@ -13,6 +14,7 @@ export type BatchItemComplete = (
 ) => void;
 
 export function useBatchScreening() {
+  const { activeClinic } = useClinic();
   const [running, setRunning] = useState(false);
   const [current, setCurrent] = useState(0);
   const [total, setTotal] = useState(0);
@@ -30,7 +32,12 @@ export function useBatchScreening() {
       conditions: string[],
       onItemComplete?: BatchItemComplete,
     ) => {
-      if (!folder || names.length === 0 || conditions.length === 0) {
+      if (
+        !folder ||
+        names.length === 0 ||
+        conditions.length === 0 ||
+        !activeClinic
+      ) {
         return [];
       }
 
@@ -49,7 +56,13 @@ export function useBatchScreening() {
         setCurrent(i + 1);
 
         try {
-          const response = await screenImageFromPath(folder, filename, conditions);
+          const response = await screenImageFromPath(
+            folder,
+            filename,
+            conditions,
+            { includeHeatmaps: false },
+            activeClinic.id,
+          );
           accumulated.push({ filename, response });
           onItemComplete?.(filename, response);
         } catch {
@@ -62,7 +75,7 @@ export function useBatchScreening() {
       setRunning(false);
       return accumulated;
     },
-    [],
+    [activeClinic],
   );
 
   const reset = useCallback(() => {
