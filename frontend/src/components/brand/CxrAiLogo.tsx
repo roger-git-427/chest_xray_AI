@@ -24,8 +24,8 @@ type Props = {
   className?: string;
 };
 
-/** ByteAI product mark — chest imaging + AI scan motif */
-export function ByteAILogo({ size = 'md', showStatus = false, className = '' }: Props) {
+/** Marca de CXR AI Analyzer — motivo de imagen torácica + escaneo de IA */
+export function CxrAiLogo({ size = 'md', showStatus = false, className = '' }: Props) {
   return (
     <div
       className={`relative flex shrink-0 items-center justify-center bg-gradient-to-br from-teal-600 via-teal-500 to-cyan-400 ring-1 ring-white/20 ${boxClass[size]} ${className}`}

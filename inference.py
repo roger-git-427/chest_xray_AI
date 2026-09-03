@@ -25,7 +25,7 @@ def load_model(weights_path=None):
 
 
 def predict_image(image, model, condition=None):
-    """image: path (str | Path) or PIL.Image. Returns result dict."""
+    """image: ruta (str | Path) o PIL.Image. Devuelve un diccionario de resultado."""
     condition = condition or config.CONDITION
     if isinstance(image, (str, Path)):
         image = Image.open(image).convert('RGB')
@@ -76,13 +76,13 @@ def main():
     parser.add_argument(
         '--condition',
         default=config.CONDITION,
-        help='Finding to screen for',
+        help='Hallazgo a detectar en el tamizaje',
     )
     parser.add_argument(
         '--model',
         type=str,
         default=None,
-        help='Ruta a los pesos (default: best model for --condition)',
+        help='Ruta a los pesos (default: mejor modelo para --condition)',
     )
     args = parser.parse_args()
 

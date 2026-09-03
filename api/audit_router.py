@@ -1,4 +1,4 @@
-"""Authorized audit event queries."""
+"""Consultas autorizadas de eventos de auditoría."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def list_audit_events(
     query = select(AuditEvent).order_by(desc(AuditEvent.created_at))
     if principal.user.role != UserRole.MASTER:
         if clinic_id is None:
-            raise HTTPException(400, "clinic_id is required")
+            raise HTTPException(400, "Se requiere clinic_id")
         require_clinic_admin(db, principal.user, clinic_id)
         query = query.where(AuditEvent.clinic_id == clinic_id)
     elif clinic_id:

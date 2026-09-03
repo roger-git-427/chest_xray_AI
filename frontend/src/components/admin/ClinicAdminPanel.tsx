@@ -8,7 +8,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useClinic } from '../../context/ClinicContext';
 import { es } from '../../i18n/es';
-import { isMaster, isPatient } from '../../lib/roles';
+import { isMaster, isPatient, roleLabel } from '../../lib/roles';
 
 export function ClinicAdminPanel() {
   const { user } = useAuth();
@@ -214,7 +214,7 @@ export function ClinicAdminPanel() {
                     {item.name}
                   </p>
                   <p className="mt-1 text-xs text-[var(--text-muted)]">
-                    {item.email} · {item.role}
+                    {item.email} · {roleLabel(item.role)}
                   </p>
                 </div>
               ))}

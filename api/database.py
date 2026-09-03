@@ -1,4 +1,4 @@
-"""SQLAlchemy engine and request-scoped sessions."""
+"""Motor SQLAlchemy y sesiones con alcance por solicitud."""
 
 from __future__ import annotations
 

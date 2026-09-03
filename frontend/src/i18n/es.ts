@@ -1,9 +1,9 @@
 /**
- * Spanish UI copy only. Code, APIs, and config use English identifiers.
+ * Textos de interfaz en español. El código y las APIs usan identificadores en inglés.
  */
 export const es = {
-  productName: 'ByteAI',
-  productEdition: 'Clinical Screening',
+  productName: 'CXR AI Analyzer',
+  productEdition: 'Tamizaje con inteligencia artificial',
   appTitle: 'Tamizaje de radiografía de tórax',
   appSubtitle: 'Plataforma de apoyo al diagnóstico — no sustituye criterio médico',
   statusOnline: 'Sistema operativo',
@@ -14,8 +14,12 @@ export const es = {
   authUsername: 'Correo electrónico',
   authPassword: 'Contraseña',
   authSignIn: 'Ingresar',
-  authDemoHint: 'El acceso es administrado por ByteAI o por su clínica.',
+  authDemoHint: 'Demostración: root@root.com / admin',
   authSignOut: 'Cerrar sesión',
+  authEmailRequired: 'Complete este campo.',
+  authEmailInvalid:
+    "Incluya un '@' en la dirección de correo. '{value}' no es un correo válido.",
+  authPasswordRequired: 'Complete este campo.',
 
   themeLight: 'Tema claro',
   themeDark: 'Tema oscuro',
@@ -102,7 +106,7 @@ export const es = {
   patientRequiredHint:
     'Cree un paciente en Administración clínica antes de cargar el estudio.',
 
-  adminMasterTitle: 'Control Master',
+  adminMasterTitle: 'Panel master',
   adminClinicTitle: 'Administración clínica',
   adminClinicEmpty: 'Seleccione o cree una clínica',
   adminClinicSelect: 'Seleccionar clínica',
@@ -114,7 +118,7 @@ export const es = {
   adminAddAccount: 'Agregar cuenta',
   adminFullName: 'Nombre completo',
   adminEmail: 'Correo',
-  adminInitialPassword: 'Contraseña inicial (12+ caracteres)',
+  adminInitialPassword: 'Contraseña inicial (mín. 5 caracteres)',
   adminPatientRole: 'Paciente',
   adminAdministratorRole: 'Administrador',
   adminCreateAssign: 'Crear y asignar',
@@ -122,6 +126,11 @@ export const es = {
   adminClinicFallback: 'la clínica',
   adminClinicCreateError: 'No se pudo crear la clínica.',
   adminMemberCreateError: 'No se pudo crear o asignar la cuenta.',
+  roleMaster: 'Master',
+  roleAdmin: 'Administrador',
+  rolePatient: 'Paciente',
+  modelCardSens: 'Sens.',
+  modelCardSpec: 'Esp.',
 
   patientPortalTitle: 'Portal del paciente',
   patientStudiesTitle: 'Mis estudios',
@@ -161,7 +170,7 @@ export const es = {
   studyMetaSource: 'Origen',
   confirmReview: 'Marcar como revisado por clínico',
   confirmReviewDone: 'Revisión clínica registrada',
-  pdfReportVersion: 'Informe generado por ByteAI · tamizaje preliminar',
+  pdfReportVersion: 'Informe generado por CXR AI Analyzer · tamizaje preliminar',
   pdfReportId: 'ID de informe',
   pdfSignature: 'Firma del clínico revisor',
   pdfSignatureDate: 'Fecha de revisión',
@@ -209,9 +218,9 @@ export const es = {
   modelCardHide: 'Ocultar ficha',
   modelCardArchitecture: 'Arquitectura',
   modelCardDataset: 'Conjunto de datos',
-  modelCardAuc: 'AUC prueba NIH',
+  modelCardAuc: 'AUC (prueba NIH)',
   modelCardWeights: 'Pesos actualizados',
-  modelCardCalibration: 'Calibración (NIH test)',
+  modelCardCalibration: 'Calibración (prueba NIH)',
   overallReview: 'Prioridad de revisión',
   overallRoutine: 'Sin criterios de derivación',
   overallReviewDesc: 'Uno o más hallazgos superan el umbral configurado.',

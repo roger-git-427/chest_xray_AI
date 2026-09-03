@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cxrai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cxrai}
+      POSTGRES_DB: ${POSTGRES_DB:-cxrai}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cxrai} -d ${POSTGRES_DB:-cxrai}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cxrai}:${POSTGRES_PASSWORD:-cxrai}@db:5432/${POSTGRES_DB:-cxrai}
+      STORAGE_BACKEND: local
+      STORAGE_ROOT: /data/storage
+      SECURE_COOKIES: ${SECURE_COOKIES:-false}
+      SESSION_DAYS: ${SESSION_DAYS:-7}
+      CXRAI_MASTER_EMAIL: ${CXRAI_MASTER_EMAIL:-root@root.com}
+      CXRAI_MASTER_PASSWORD: ${CXRAI_MASTER_PASSWORD:-admin}
+      CXRAI_MASTER_NAME: ${CXRAI_MASTER_NAME:-CXR AI Analyzer Master}
+    volumes:
+      - storage:/data/storage
+      - ./checkpoints:/app/checkpoints:ro
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  storage:

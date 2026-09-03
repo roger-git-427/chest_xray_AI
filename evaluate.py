@@ -35,11 +35,11 @@ def evaluate(model, loader):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Evaluate chest X-ray classifier')
+    parser = argparse.ArgumentParser(description='Evaluar clasificador de radiografía de tórax')
     parser.add_argument(
         '--condition',
         default=config.CONDITION,
-        help='Finding to evaluate (default: config.CONDITION)',
+        help='Hallazgo a evaluar (default: config.CONDITION)',
     )
     return parser.parse_args()
 

@@ -72,7 +72,7 @@ function makeReportId(filename: string, screenedAt?: string): string {
   const d = screenedAt ? new Date(screenedAt) : new Date();
   const stamp = d.toISOString().slice(0, 10).replace(/-/g, '');
   const slug = safeFilename(filename).slice(0, 10).toUpperCase();
-  return `BAI-${stamp}-${slug}`;
+  return `CXR-${stamp}-${slug}`;
 }
 
 function paintPageBackground(doc: jsPDF) {
@@ -657,5 +657,5 @@ export async function generateScreeningPdf(
   })
     .format(new Date())
     .replace(/[/\s:,]/g, '-');
-  doc.save(`ByteAI-informe-${name}-${stamp}.pdf`);
+  doc.save(`CXR-AI-Analyzer-informe-${name}-${stamp}.pdf`);
 }

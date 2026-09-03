@@ -77,7 +77,7 @@ export function usePriorScreening({
         imageUrl: imageContentUrl(resolvedFolder, latestPrior.filename),
       });
     } catch {
-      // Keep the unavailable state when the prior cannot be screened.
+      // Mantener el estado no disponible cuando el estudio previo no se puede analizar.
     } finally {
       setLoading(false);
     }

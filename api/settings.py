@@ -1,4 +1,4 @@
-"""Environment-backed application settings."""
+"""Configuración de la aplicación basada en variables de entorno."""
 
 from __future__ import annotations
 
@@ -23,21 +23,21 @@ def _bool_env(name: str, default: bool = False) -> bool:
 class Settings:
     database_url: str = os.getenv(
         "DATABASE_URL",
-        f"sqlite:///{(config.PROJECT_ROOT / 'byteai-dev.db').as_posix()}",
+        f"sqlite:///{(config.PROJECT_ROOT / 'cxrai-dev.db').as_posix()}",
     )
     storage_backend: str = os.getenv("STORAGE_BACKEND", "local")
     storage_root: Path = Path(
-        os.getenv("STORAGE_ROOT", str(config.PROJECT_ROOT / ".byteai-storage"))
+        os.getenv("STORAGE_ROOT", str(config.PROJECT_ROOT / ".cxrai-storage"))
     )
-    session_cookie_name: str = os.getenv("SESSION_COOKIE_NAME", "byteai_session")
-    csrf_cookie_name: str = os.getenv("CSRF_COOKIE_NAME", "byteai_csrf")
+    session_cookie_name: str = os.getenv("SESSION_COOKIE_NAME", "cxrai_session")
+    csrf_cookie_name: str = os.getenv("CSRF_COOKIE_NAME", "cxrai_csrf")
     session_days: int = int(os.getenv("SESSION_DAYS", "7"))
     secure_cookies: bool = _bool_env("SECURE_COOKIES", False)
     azure_storage_connection_string: str | None = os.getenv(
         "AZURE_STORAGE_CONNECTION_STRING"
     )
     azure_storage_container: str = os.getenv(
-        "AZURE_STORAGE_CONTAINER", "byteai-private"
+        "AZURE_STORAGE_CONTAINER", "cxrai-private"
     )
 
 

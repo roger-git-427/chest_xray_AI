@@ -1,7 +1,8 @@
-import { ByteAILogo } from '../brand/ByteAILogo';
+import { roleLabel } from '../../lib/roles';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { es } from '../../i18n/es';
+import { CxrAiLogo } from '../brand/CxrAiLogo';
 
 type Props = {
   modelsActive: number;
@@ -16,7 +17,7 @@ export function AppHeader({ modelsActive, overallFlagged }: Props) {
     <header className="pro-header">
       <div className="mx-auto flex h-14 min-h-[56px] max-w-[1600px] items-center gap-3 px-4 sm:h-16 sm:gap-5 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-          <ByteAILogo size="sm" showStatus />
+          <CxrAiLogo size="sm" showStatus />
           <div className="min-w-0">
             <p className="truncate text-[9px] font-semibold uppercase tracking-[0.15em] text-teal-500 sm:text-[10px] sm:tracking-[0.2em]">
               {es.productEdition}
@@ -50,7 +51,7 @@ export function AppHeader({ modelsActive, overallFlagged }: Props) {
 
           {user && (
             <span className="hidden rounded-full border border-[var(--border-subtle)] px-3 py-1.5 text-xs text-[var(--text-muted)] lg:inline">
-              {user.name} · {user.role}
+              {user.name} · {roleLabel(user.role)}
             </span>
           )}
 

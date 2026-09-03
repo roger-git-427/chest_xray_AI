@@ -127,7 +127,7 @@ def login(client: TestClient, email: str, password: str) -> dict[str, str]:
         "/api/auth/login", json={"email": email, "password": password}
     )
     assert response.status_code == 200
-    csrf = client.cookies.get("byteai_csrf")
+    csrf = client.cookies.get("cxrai_csrf")
     assert csrf
     return {"X-CSRF-Token": csrf}
 

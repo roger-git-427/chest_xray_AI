@@ -1,4 +1,4 @@
-"""Transaction-oriented study screening workflow."""
+"""Flujo de tamizaje de estudios orientado a transacciones."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ def resolve_conditions(requested: list[str]) -> list[str]:
     available = config.available_screening_conditions()
     selected = [item for item in (requested or available) if item in available]
     if not selected:
-        raise HTTPException(400, "No valid conditions selected")
+        raise HTTPException(400, "No se seleccionaron condiciones válidas")
     return selected
 
 
@@ -52,7 +52,7 @@ def validate_patient(
         return
     patient = db.get(User, patient_id)
     if patient is None or patient.role != UserRole.PATIENT:
-        raise HTTPException(400, "Patient is invalid")
+        raise HTTPException(400, "El paciente no es válido")
     require_clinic_access(db, patient, clinic_id)
 
 
@@ -160,7 +160,7 @@ def screen_and_persist(
     try:
         image, dicom_metadata = load_image_bytes(raw, filename)
     except Exception as exc:
-        raise HTTPException(400, f"Invalid image: {exc}") from exc
+        raise HTTPException(400, f"Imagen no válida: {exc}") from exc
 
     obj = storage.put(
         raw,

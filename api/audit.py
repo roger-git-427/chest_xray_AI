@@ -1,4 +1,4 @@
-"""Small helper for durable security and workflow audit events."""
+"""Pequeño auxiliar para eventos de auditoría de seguridad y flujo de trabajo persistentes."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Model card metadata for screening conditions."""
+"""Metadatos de ficha de modelo para las condiciones de tamizaje."""
 
 from __future__ import annotations
 

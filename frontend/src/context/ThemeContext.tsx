@@ -10,7 +10,7 @@ import {
 
 type Theme = 'dark' | 'light';
 
-const STORAGE_KEY = 'byteai-theme';
+const STORAGE_KEY = 'cxrai-theme';
 
 type ThemeContextValue = {
   theme: Theme;
@@ -43,6 +43,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
 export function useTheme() {
   const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error('useTheme must be used within ThemeProvider');
+  if (!ctx) throw new Error('useTheme debe usarse dentro de ThemeProvider');
   return ctx;
 }

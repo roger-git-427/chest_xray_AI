@@ -1,4 +1,4 @@
-/** Load an image URL and return a JPEG data URL scaled for PDF embedding. */
+/** Carga una URL de imagen y devuelve una data URL JPEG escalada para incrustar en PDF. */
 export async function imageToPdfDataUrl(
   src: string,
   maxWidth = 320,

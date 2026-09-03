@@ -1,4 +1,4 @@
-"""List and resolve images on disk (folder browse for the web UI)."""
+"""Lista y resuelve imágenes en disco (exploración de carpetas para la UI web)."""
 
 from pathlib import Path
 
@@ -20,9 +20,9 @@ def resolve_folder(folder: str) -> Path:
         path = ROOT / path
     path = path.resolve()
     if not path.is_dir():
-        raise HTTPException(404, 'Folder not found')
+        raise HTTPException(404, 'Carpeta no encontrada')
     if not _is_under_allowed_root(path):
-        raise HTTPException(403, 'Folder path not allowed')
+        raise HTTPException(403, 'Ruta de carpeta no permitida')
     return path
 
 
@@ -53,11 +53,11 @@ def list_images(folder: str, query: str = '') -> dict:
 
 def resolve_image_file(folder: str, name: str) -> Path:
     if not name or '/' in name or '\\' in name or name in ('.', '..'):
-        raise HTTPException(400, 'Invalid filename')
+        raise HTTPException(400, 'Nombre de archivo no válido')
     directory = resolve_folder(folder)
     path = (directory / name).resolve()
     if path.parent != directory:
-        raise HTTPException(400, 'Invalid filename')
+        raise HTTPException(400, 'Nombre de archivo no válido')
     if not path.is_file() or path.suffix.lower() not in IMAGE_SUFFIXES:
-        raise HTTPException(404, 'Image not found')
+        raise HTTPException(404, 'Imagen no encontrada')
     return path

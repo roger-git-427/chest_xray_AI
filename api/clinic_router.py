@@ -1,4 +1,4 @@
-"""Clinic and membership administration endpoints."""
+"""Endpoints de administración de clínicas y membresías."""
 
 from __future__ import annotations
 
@@ -38,13 +38,13 @@ class MemberCreate(BaseModel):
     email: str = Field(min_length=3, max_length=320)
     full_name: str = Field(min_length=2, max_length=200)
     role: UserRole
-    password: str | None = Field(default=None, min_length=12)
+    password: str | None = Field(default=None, min_length=5)
 
 
 def _slug(value: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", value.strip().lower()).strip("-")
     if not slug:
-        raise HTTPException(400, "Clinic slug is invalid")
+        raise HTTPException(400, "El slug de la clínica no es válido")
     return slug
 
 
@@ -94,11 +94,11 @@ def create_clinic(
     db: Session = Depends(get_db),
 ):
     if principal.user.role != UserRole.MASTER:
-        raise HTTPException(403, "Master access required")
+        raise HTTPException(403, "Se requiere acceso Master")
 
     slug = _slug(body.slug or body.name)
     if db.scalar(select(Clinic.id).where(Clinic.slug == slug)):
-        raise HTTPException(409, "Clinic slug already exists")
+        raise HTTPException(409, "El slug de la clínica ya existe")
     clinic = Clinic(name=body.name.strip(), slug=slug)
     db.add(clinic)
     db.flush()
@@ -122,10 +122,10 @@ def update_clinic(
     db: Session = Depends(get_db),
 ):
     if principal.user.role != UserRole.MASTER:
-        raise HTTPException(403, "Master access required")
+        raise HTTPException(403, "Se requiere acceso Master")
     clinic = db.get(Clinic, clinic_id)
     if clinic is None:
-        raise HTTPException(404, "Clinic not found")
+        raise HTTPException(404, "Clínica no encontrada")
     if body.name is not None:
         clinic.name = body.name.strip()
     if body.active is not None:
@@ -167,17 +167,17 @@ def add_member(
     require_clinic_admin(db, principal.user, clinic_id)
     clinic = db.get(Clinic, clinic_id)
     if clinic is None or not clinic.active:
-        raise HTTPException(404, "Clinic not found")
+        raise HTTPException(404, "Clínica no encontrada")
     if body.role == UserRole.MASTER:
-        raise HTTPException(400, "Master users are not clinic members")
+        raise HTTPException(400, "Los usuarios Master no son miembros de clínica")
     if principal.user.role == UserRole.ADMIN and body.role != UserRole.PATIENT:
-        raise HTTPException(403, "Administrators can only create patients")
+        raise HTTPException(403, "Los administradores solo pueden crear pacientes")
 
     email = body.email.strip().lower()
     user = db.scalar(select(User).where(User.email == email))
     if user is None:
         if not body.password:
-            raise HTTPException(400, "Password is required for a new user")
+            raise HTTPException(400, "Se requiere contraseña para un usuario nuevo")
         user = User(
             email=email,
             full_name=body.full_name.strip(),
@@ -188,7 +188,7 @@ def add_member(
         db.add(user)
         db.flush()
     elif user.role != body.role:
-        raise HTTPException(409, "Existing user has a different role")
+        raise HTTPException(409, "El usuario existente tiene un rol diferente")
 
     existing = db.scalar(
         select(ClinicMembership).where(
@@ -197,7 +197,7 @@ def add_member(
         )
     )
     if existing:
-        raise HTTPException(409, "User is already a clinic member")
+        raise HTTPException(409, "El usuario ya es miembro de la clínica")
 
     membership = ClinicMembership(clinic_id=clinic_id, user_id=user.id)
     db.add(membership)
@@ -230,9 +230,9 @@ def remove_member(
         )
     )
     if membership is None:
-        raise HTTPException(404, "Membership not found")
+        raise HTTPException(404, "Membresía no encontrada")
     if principal.user.id == user_id:
-        raise HTTPException(400, "You cannot remove your own membership")
+        raise HTTPException(400, "No puede eliminar su propia membresía")
     db.delete(membership)
     record_audit(
         db,

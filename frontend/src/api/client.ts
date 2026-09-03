@@ -149,7 +149,7 @@ export async function apiFetch(
   const headers = new Headers(init.headers);
   const method = (init.method ?? 'GET').toUpperCase();
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    const csrf = cookieValue('byteai_csrf');
+    const csrf = cookieValue('cxrai_csrf');
     if (csrf) headers.set('X-CSRF-Token', csrf);
   }
   return fetch(`${API_BASE}${path}`, {
@@ -168,14 +168,14 @@ export async function login(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
-  if (!res.ok) throw new Error('auth');
+  if (!res.ok) throw new Error('Error de autenticación');
   const data = await res.json();
   return data.user;
 }
 
 export async function fetchCurrentUser(): Promise<UserSession> {
   const res = await apiFetch('/api/auth/me');
-  if (!res.ok) throw new Error('auth');
+  if (!res.ok) throw new Error('Error de autenticación');
   const data = await res.json();
   return data.user;
 }
@@ -186,7 +186,7 @@ export async function logout(): Promise<void> {
 
 export async function fetchClinics(): Promise<ClinicSummary[]> {
   const res = await apiFetch('/api/clinics');
-  if (!res.ok) throw new Error('clinics');
+  if (!res.ok) throw new Error('Error al cargar clínicas');
   const data = await res.json();
   return data.clinics;
 }
@@ -208,7 +208,7 @@ export async function fetchClinicMembers(
   clinicId: string,
 ): Promise<ClinicMember[]> {
   const res = await apiFetch(`/api/clinics/${clinicId}/members`);
-  if (!res.ok) throw new Error('members');
+  if (!res.ok) throw new Error('Error al cargar miembros');
   const data = await res.json();
   return data.members;
 }
@@ -238,7 +238,7 @@ export async function fetchPersistedStudies(
     ? `?${new URLSearchParams({ clinic_id: clinicId })}`
     : '';
   const res = await apiFetch(`/api/studies${params}`);
-  if (!res.ok) throw new Error('studies');
+  if (!res.ok) throw new Error('Error al cargar estudios');
   const data = await res.json();
   return data.studies;
 }
@@ -247,7 +247,7 @@ export async function fetchPersistedStudy(
   studyId: string,
 ): Promise<PersistedStudy> {
   const res = await apiFetch(`/api/studies/${studyId}`);
-  if (!res.ok) throw new Error('study');
+  if (!res.ok) throw new Error('Error al cargar estudio');
   return res.json();
 }
 
@@ -264,7 +264,7 @@ export async function savePersistedReport(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(report),
   });
-  if (!res.ok) throw new Error('report');
+  if (!res.ok) throw new Error('Error al guardar informe');
   return res.json();
 }
 
@@ -274,7 +274,7 @@ export async function reviewPersistedStudy(
   const res = await apiFetch(`/api/studies/${studyId}/review`, {
     method: 'POST',
   });
-  if (!res.ok) throw new Error('review');
+  if (!res.ok) throw new Error('Error al revisar estudio');
   return res.json();
 }
 
@@ -284,7 +284,7 @@ export async function markPersistedStudyExported(
   const res = await apiFetch(`/api/studies/${studyId}/export`, {
     method: 'POST',
   });
-  if (!res.ok) throw new Error('export');
+  if (!res.ok) throw new Error('Error al exportar');
 }
 
 export type AppSettings = {
@@ -302,26 +302,26 @@ export type ImageListResponse = {
 
 export async function fetchSettings(): Promise<AppSettings> {
   const res = await apiFetch('/api/settings');
-  if (!res.ok) throw new Error('settings');
+  if (!res.ok) throw new Error('Error al cargar configuración');
   return res.json();
 }
 
 export async function fetchConditions(): Promise<ConditionInfo[]> {
   const res = await apiFetch('/api/conditions');
-  if (!res.ok) throw new Error('conditions');
+  if (!res.ok) throw new Error('Error al cargar condiciones');
   const data = await res.json();
   return data.conditions;
 }
 
 export async function fetchStudyMetadata(filename: string): Promise<StudyMetadata> {
   const res = await apiFetch(`/api/study/${encodeURIComponent(filename)}`);
-  if (!res.ok) throw new Error('study');
+  if (!res.ok) throw new Error('Error al cargar estudio');
   return res.json();
 }
 
 export async function fetchStudyPriors(filename: string): Promise<PriorStudy[]> {
   const res = await apiFetch(`/api/study/${encodeURIComponent(filename)}/priors`);
-  if (!res.ok) throw new Error('priors');
+  if (!res.ok) throw new Error('Error al cargar estudios previos');
   const data = await res.json();
   return data.priors ?? [];
 }
@@ -332,7 +332,7 @@ export async function fetchImageList(
 ): Promise<ImageListResponse> {
   const params = new URLSearchParams({ folder, q: query });
   const res = await apiFetch(`/api/images?${params}`);
-  if (!res.ok) throw new Error('images');
+  if (!res.ok) throw new Error('Error al cargar imágenes');
   return res.json();
 }
 
@@ -369,7 +369,7 @@ export async function screenImageFromPath(
   });
   if (!res.ok) {
     const detail = await res.text();
-    throw new Error(detail || 'screen');
+    throw new Error(detail || 'Error de análisis');
   }
   return res.json();
 }
@@ -395,7 +395,7 @@ export async function screenImage(
   });
   if (!res.ok) {
     const detail = await res.text();
-    throw new Error(detail || 'screen');
+    throw new Error(detail || 'Error de análisis');
   }
   return res.json();
 }

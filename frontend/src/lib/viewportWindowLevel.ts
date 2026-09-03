@@ -1,6 +1,6 @@
 export type WindowPreset = 'default' | 'lung' | 'bone' | 'mediastinum';
 
-/** Client-side approximations of common chest X-ray window presets (not DICOM W/L). */
+/** Aproximaciones en el cliente de presets de ventana habituales en radiografía de tórax (no son W/L DICOM). */
 export function buildViewportFilter(
   preset: WindowPreset,
   inverted: boolean,

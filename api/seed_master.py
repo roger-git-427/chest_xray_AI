@@ -1,4 +1,4 @@
-"""Create or update the first Master account from environment variables."""
+"""Crea o actualiza la primera cuenta Master a partir de variables de entorno."""
 
 from __future__ import annotations
 
@@ -12,12 +12,12 @@ from api.security import hash_password
 
 
 def main() -> None:
-    email = os.getenv("BYTEAI_MASTER_EMAIL", "").strip().lower()
-    password = os.getenv("BYTEAI_MASTER_PASSWORD", "")
-    name = os.getenv("BYTEAI_MASTER_NAME", "ByteAI Master").strip()
+    email = os.getenv("CXRAI_MASTER_EMAIL", "root@root.com").strip().lower()
+    password = os.getenv("CXRAI_MASTER_PASSWORD", "admin")
+    name = os.getenv("CXRAI_MASTER_NAME", "CXR AI Analyzer Master").strip()
     if not email or not password:
         raise SystemExit(
-            "Set BYTEAI_MASTER_EMAIL and BYTEAI_MASTER_PASSWORD first."
+            "Configure primero CXRAI_MASTER_EMAIL y CXRAI_MASTER_PASSWORD."
         )
 
     with SessionLocal() as db:
@@ -39,7 +39,7 @@ def main() -> None:
             user.active = True
             action = "updated"
         db.commit()
-    print(f"Master account {action}: {email}")
+        print(f"Master account {action}: {email}")
 
 
 if __name__ == "__main__":

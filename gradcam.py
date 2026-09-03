@@ -1,4 +1,4 @@
-"""Grad-CAM overlays for ConvNeXt screening models."""
+"""Superposiciones Grad-CAM para modelos de tamizaje ConvNeXt."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def _target_layer(model):
 
 
 def generate_gradcam_overlay(model, pil_image: Image.Image) -> str | None:
-    """Return a JPEG data URL with heatmap blended over the study."""
+    """Devuelve una URL de datos JPEG con el mapa de calor mezclado sobre el estudio."""
     model.eval()
     rgb = pil_image.convert('RGB').resize((IMG_SIZE, IMG_SIZE))
     tensor = val_transform(rgb).unsqueeze(0).to(DEVICE)

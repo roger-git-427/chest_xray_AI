@@ -1,7 +1,7 @@
 import type { ReportDraft } from './studyMappers';
 
-const DRAFT_PREFIX = 'byteai-report-draft-';
-const REVIEWED_PREFIX = 'byteai-reviewed-';
+const DRAFT_PREFIX = 'cxrai-report-draft-';
+const REVIEWED_PREFIX = 'cxrai-reviewed-';
 const EMPTY_DRAFT: ReportDraft = {
   impression: '',
   recommendations: '',

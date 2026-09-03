@@ -1,5 +1,5 @@
 # ── dataset.py ────────────────────────────────────────────
-# Dataset class, transforms, and data loading.
+# Clase Dataset, transformaciones y carga de datos.
 
 import config
 import os
@@ -19,7 +19,7 @@ from config import (
 from utils import seed_worker, make_generator
 
 
-# ── Dataset class ─────────────────────────────────────────
+# ── Clase Dataset ─────────────────────────────────────────
 
 class ChestXrayDataset(Dataset):
     def __init__(self, dataframe, image_dir, transform=None):
@@ -48,7 +48,7 @@ class ChestXrayDataset(Dataset):
         return image, label
 
 
-# ── Transforms ────────────────────────────────────────────
+# ── Transformaciones ────────────────────────────────────────────
 
 train_transform = transforms.Compose([
     transforms.Resize((IMG_SIZE, IMG_SIZE)),
@@ -68,7 +68,7 @@ val_transform = transforms.Compose([
 ])
 
 
-# ── Data loading ──────────────────────────────────────────
+# ── Carga de datos ──────────────────────────────────────────
 
 def load_data():
     df = pd.read_csv(CSV_PATH)

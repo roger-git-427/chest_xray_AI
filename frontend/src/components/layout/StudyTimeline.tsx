@@ -9,7 +9,7 @@ type Props = {
   onExport?: (entry: TimelineEntry) => void;
   activeId?: string | null;
   exportError?: string | null;
-  /** Shorter scroll area for laptop sidebar layout */
+  /** Área de desplazamiento más corta para el diseño de barra lateral en portátil */
   compact?: boolean;
 };
 

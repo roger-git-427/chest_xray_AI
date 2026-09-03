@@ -141,7 +141,7 @@
     padding: 1.25rem;
   }
 
-  /* Opaque panels (e.g. informe) — avoids sidebar bleed-through on laptop */
+  /* Paneles opacos (p. ej. informe) — evita que se transparente la barra lateral en portátil */
   .pro-panel-opaque {
     background: var(--bg-panel);
   }
@@ -151,12 +151,12 @@
   }
 
   /*
-   * Desktop grid: informe sits beside the sidebar, not under the timeline.
-   * lg (laptop):  [ sidebar | study ]
-   *               [ sidebar | viewport ]
-   *               [ sidebar | informe ]
-   * xl:           [ sidebar | study | viewport ]
-   *               [ sidebar | informe (span 2) ]
+   * Cuadrícula de escritorio: el informe va junto a la barra lateral, no bajo la línea de tiempo.
+   * lg (portátil): [ barra lateral | estudio ]
+   *                [ barra lateral | visor ]
+   *                [ barra lateral | informe ]
+   * xl:            [ barra lateral | estudio | visor ]
+   *                [ barra lateral | informe (span 2) ]
    */
   .pro-desktop-grid {
     grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
@@ -773,7 +773,7 @@
   }
 }
 
-/* Light theme */
+/* Tema claro */
 [data-theme='light'] {
   --bg-deep: #f8fafc;
   --bg-base: #f1f5f9;

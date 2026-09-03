@@ -1,4 +1,4 @@
-"""FastAPI backend for chest X-ray screening."""
+"""Backend FastAPI para el tamizaje de radiografías de tórax."""
 
 import io
 from contextlib import asynccontextmanager
@@ -33,8 +33,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title='ByteAI Screening API',
-    description='Preliminary screening only — not a medical diagnosis.',
+    title='API de tamizaje CXR AI Analyzer',
+    description='Solo tamizaje preliminar — no es un diagnóstico médico.',
     lifespan=lifespan,
 )
 
@@ -45,6 +45,8 @@ app.add_middleware(
         'http://127.0.0.1:5173',
         'http://localhost:5174',
         'http://127.0.0.1:5174',
+        'http://localhost:8080',
+        'http://127.0.0.1:8080',
     ],
     allow_credentials=True,
     allow_methods=['*'],
@@ -109,17 +111,17 @@ def screen_from_path(
 ):
     available = config.available_screening_conditions()
     if not available:
-        raise HTTPException(503, 'No trained models found in checkpoints/')
+        raise HTTPException(503, 'No se encontraron modelos entrenados en checkpoints/')
 
     selected = [c for c in (conditions or available) if c in available]
     if not selected:
-        raise HTTPException(400, 'No valid conditions selected')
+        raise HTTPException(400, 'No se seleccionaron condiciones válidas')
 
     path = resolve_image_file(body.folder, body.filename)
     try:
         image, dicom_meta = load_image_path(path)
     except Exception as exc:
-        raise HTTPException(400, f'Invalid image: {exc}') from exc
+        raise HTTPException(400, f'Imagen no válida: {exc}') from exc
 
     results = screen_image(image, selected, include_heatmaps=include_heatmaps)
     payload = {
@@ -141,10 +143,10 @@ def study_metadata(
     _principal: Principal = Depends(require_master),
 ):
     if not metadata_available():
-        raise HTTPException(404, 'NIH metadata CSV not found')
+        raise HTTPException(404, 'No se encontró el CSV de metadatos NIH')
     meta = get_study(filename)
     if meta is None:
-        raise HTTPException(404, 'Study not found in metadata')
+        raise HTTPException(404, 'Estudio no encontrado en los metadatos')
     return meta
 
 
@@ -160,7 +162,7 @@ def study_priors(
 
 @app.get('/api/conditions')
 def list_conditions(_principal: Principal = Depends(get_principal)):
-    """Return screening conditions for the UI (English ids, Spanish labels)."""
+    """Devuelve las condiciones de tamizaje para la UI (ids en inglés, etiquetas en español)."""
     items = []
     for condition in config.SCREENING_CONDITIONS:
         weights = config.best_model_path(condition)
@@ -184,21 +186,21 @@ async def screen(
 ):
     dicom = is_dicom_file(file.filename, file.content_type)
     if not dicom and file.content_type and not file.content_type.startswith('image/'):
-        raise HTTPException(400, 'File must be an image or DICOM (.dcm)')
+        raise HTTPException(400, 'El archivo debe ser una imagen o DICOM (.dcm)')
 
     available = config.available_screening_conditions()
     if not available:
-        raise HTTPException(503, 'No trained models found in checkpoints/')
+        raise HTTPException(503, 'No se encontraron modelos entrenados en checkpoints/')
 
     selected = [c for c in (conditions or available) if c in available]
     if not selected:
-        raise HTTPException(400, 'No valid conditions selected')
+        raise HTTPException(400, 'No se seleccionaron condiciones válidas')
 
     raw = await file.read()
     try:
         image, dicom_meta = load_image_bytes(raw, file.filename)
     except Exception as exc:
-        raise HTTPException(400, f'Invalid image: {exc}') from exc
+        raise HTTPException(400, f'Imagen no válida: {exc}') from exc
 
     results = screen_image(image, selected, include_heatmaps=include_heatmaps)
     any_flagged = any(r['flagged'] for r in results)

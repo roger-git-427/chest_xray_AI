@@ -20,7 +20,7 @@ type ClinicContextValue = {
 };
 
 const ClinicContext = createContext<ClinicContextValue | null>(null);
-const ACTIVE_KEY = 'byteai-active-clinic';
+const ACTIVE_KEY = 'cxrai-active-clinic';
 
 export function ClinicProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -90,6 +90,6 @@ export function ClinicProvider({ children }: { children: ReactNode }) {
 
 export function useClinic() {
   const context = useContext(ClinicContext);
-  if (!context) throw new Error('useClinic must be used within ClinicProvider');
+  if (!context) throw new Error('useClinic debe usarse dentro de ClinicProvider');
   return context;
 }

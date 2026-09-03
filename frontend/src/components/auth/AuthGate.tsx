@@ -1,12 +1,15 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { ByteAILogo } from '../brand/ByteAILogo';
+import { CxrAiLogo } from '../brand/CxrAiLogo';
 import { useAuth } from '../../context/AuthContext';
 import { es } from '../../i18n/es';
 
+const DEMO_EMAIL = 'root@root.com';
+const DEMO_PASSWORD = 'admin';
+
 export function AuthGate({ children }: { children: ReactNode }) {
   const { user, loading, signIn } = useAuth();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState(DEMO_EMAIL);
+  const [password, setPassword] = useState(DEMO_PASSWORD);
   const [error, setError] = useState<string | null>(null);
 
   if (loading) {
@@ -32,7 +35,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       <div className="pro-panel w-full max-w-md animate-in">
         <div className="pro-panel-body">
           <div className="mb-8 text-center">
-            <ByteAILogo size="lg" className="mx-auto mb-5" />
+            <CxrAiLogo size="lg" className="mx-auto mb-5" />
             <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
               {es.productName}
             </h1>
@@ -44,7 +47,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           </h2>
           <p className="mt-1 text-sm text-[var(--text-muted)]">{es.authSubtitle}</p>
 
-          <form onSubmit={onSubmit} className="mt-6 space-y-4">
+          <form onSubmit={onSubmit} className="mt-6 space-y-4" lang="es" noValidate={false}>
             <div>
               <label className="pro-label" htmlFor="auth-username">
                 {es.authUsername}
@@ -54,7 +57,20 @@ export function AuthGate({ children }: { children: ReactNode }) {
                 type="email"
                 autoComplete="email"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => {
+                  e.currentTarget.setCustomValidity('');
+                  setUsername(e.target.value);
+                }}
+                onInvalid={(e) => {
+                  const el = e.currentTarget;
+                  if (el.validity.valueMissing) {
+                    el.setCustomValidity(es.authEmailRequired);
+                  } else if (el.validity.typeMismatch) {
+                    el.setCustomValidity(
+                      es.authEmailInvalid.replace('{value}', el.value || '…'),
+                    );
+                  }
+                }}
                 className="pro-input font-mono"
                 required
               />
@@ -68,7 +84,16 @@ export function AuthGate({ children }: { children: ReactNode }) {
                 type="password"
                 autoComplete="current-password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  e.currentTarget.setCustomValidity('');
+                  setPassword(e.target.value);
+                }}
+                onInvalid={(e) => {
+                  const el = e.currentTarget;
+                  if (el.validity.valueMissing) {
+                    el.setCustomValidity(es.authPasswordRequired);
+                  }
+                }}
                 className="pro-input"
                 required
               />

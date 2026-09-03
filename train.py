@@ -1,5 +1,5 @@
 # ── train.py ──────────────────────────────────────────────
-# Main training script. Run from terminal:
+# Script principal de entrenamiento. Ejecutar desde la terminal:
 #   python train.py --condition Effusion
 #   python train.py --condition Cardiomegaly
 
@@ -98,11 +98,11 @@ def val_epoch(model, loader, criterion):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Train chest X-ray classifier')
+    parser = argparse.ArgumentParser(description='Entrenar clasificador de radiografía de tórax')
     parser.add_argument(
         '--condition',
         default=config.CONDITION,
-        help='Finding to predict (default: config.CONDITION)',
+        help='Hallazgo a predecir (default: config.CONDITION)',
     )
     return parser.parse_args()
 
@@ -117,22 +117,22 @@ def main():
     set_seed()
     ensure_dirs()
 
-    # ── Data ──
+    # ── Datos ──
     train_df, val_df, test_df = load_data()
     train_loader, val_loader, _ = make_loaders(train_df, val_df, test_df)
 
-    # ── Model ──
+    # ── Modelo ──
     model     = build_model()
     criterion = build_criterion(train_df)
     optimizer = build_optimizer(model)
     scheduler = build_scheduler(optimizer)
 
-    # ── Resume ──
+    # ── Reanudar ──
     start_epoch, best_val_loss, best_val_auc = load_checkpoint(
         model, optimizer, scheduler
     )
 
-    # ── Training loop ──
+    # ── Bucle de entrenamiento ──
     for epoch in range(start_epoch, NUM_EPOCHS):
         print(f"\nEpoch {epoch+1}/{NUM_EPOCHS}")
 

@@ -1,5 +1,5 @@
 {
-  "name": "byteai",
+  "name": "cxr-ai-analyzer",
   "private": true,
   "scripts": {
     "dev:all": "concurrently -k -n api,ui -c cyan,green \"npm run dev:api\" \"npm run dev:ui\"",

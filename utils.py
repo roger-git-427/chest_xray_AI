@@ -1,5 +1,5 @@
 # ── utils.py ──────────────────────────────────────────────
-# Seed setting and helper functions.
+# Configuración de semilla y funciones auxiliares.
 
 import os
 import random

@@ -1,5 +1,5 @@
 # ── model.py ──────────────────────────────────────────────
-# Model, loss, optimizer, and scheduler setup.
+# Configuración del modelo, pérdida, optimizador y planificador de LR.
 import config
 import torch
 import torch.nn as nn

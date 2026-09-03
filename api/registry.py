@@ -1,4 +1,4 @@
-"""Load and cache screening models (one weights file per condition)."""
+"""Carga y almacena en caché los modelos de tamizaje (un archivo de pesos por condición)."""
 
 from pathlib import Path
 
@@ -22,7 +22,7 @@ def get_model(condition: str):
 
 
 def preload(conditions: list[str] | None = None) -> list[str]:
-    """Load models into memory. Returns conditions successfully loaded."""
+    """Carga los modelos en memoria. Devuelve las condiciones cargadas correctamente."""
     targets = conditions or config.available_screening_conditions()
     loaded = []
     for condition in targets:

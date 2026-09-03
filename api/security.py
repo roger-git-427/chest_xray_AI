@@ -1,4 +1,4 @@
-"""Password hashing, revocable sessions, CSRF, and authorization helpers."""
+"""Hash de contraseñas, sesiones revocables, CSRF y auxiliares de autorización."""
 
 from __future__ import annotations
 
@@ -22,8 +22,8 @@ _hasher = PasswordHasher()
 
 
 def hash_password(password: str) -> str:
-    if len(password) < 12:
-        raise ValueError("Password must contain at least 12 characters")
+    if len(password) < 5:
+        raise ValueError("La contraseña debe tener al menos 5 caracteres")
     return _hasher.hash(password)
 
 
@@ -69,7 +69,7 @@ def get_principal(
     db: Session = Depends(get_db),
 ) -> Principal:
     if not session_cookie:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Authentication required")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Se requiere autenticación")
 
     session = db.scalar(
         select(UserSession).where(
@@ -81,7 +81,7 @@ def get_principal(
         or _aware(session.expires_at) <= datetime.now(timezone.utc)
         or not session.user.active
     ):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Session expired")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sesión expirada")
     return Principal(user=session.user, session=session)
 
 
@@ -102,7 +102,7 @@ def require_csrf(
         or not secrets.compare_digest(csrf_header, expected)
         or not secrets.compare_digest(csrf_cookie, expected)
     ):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Invalid CSRF token")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Token CSRF no válido")
     return principal
 
 
@@ -110,7 +110,7 @@ def require_master(
     principal: Principal = Depends(require_csrf),
 ) -> Principal:
     if principal.user.role != UserRole.MASTER:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Master access required")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Se requiere acceso Master")
     return principal
 
 
@@ -134,7 +134,7 @@ def require_clinic_access(
     db: Session, user: User, clinic_id: uuid.UUID
 ) -> None:
     if not user_has_clinic(db, user, clinic_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Clinic access denied")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Acceso a la clínica denegado")
 
 
 def require_clinic_admin(
@@ -144,5 +144,5 @@ def require_clinic_admin(
         return
     if user.role != UserRole.ADMIN or not user_has_clinic(db, user, clinic_id):
         raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "Clinic administrator access required"
+            status.HTTP_403_FORBIDDEN, "Se requiere acceso de administrador de clínica"
         )

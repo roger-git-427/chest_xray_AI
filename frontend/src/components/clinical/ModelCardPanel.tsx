@@ -52,8 +52,8 @@ export function ModelCardPanel({ condition }: Props) {
                 <thead>
                   <tr className="text-[var(--text-faint)]">
                     <th className="pr-2">{es.pdfColThreshold}</th>
-                    <th className="pr-2">Sens.</th>
-                    <th>Spec.</th>
+                    <th className="pr-2">{es.modelCardSens}</th>
+                    <th>{es.modelCardSpec}</th>
                   </tr>
                 </thead>
                 <tbody>

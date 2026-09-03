@@ -1,4 +1,4 @@
-"""DICOM decode helpers for screening uploads and folder studies."""
+"""Auxiliares de decodificación DICOM para subidas de tamizaje y estudios en carpetas."""
 
 from __future__ import annotations
 
@@ -59,7 +59,7 @@ def _metadata_from_dataset(ds) -> dict:
         val = getattr(ds, tag, default)
         if val is None:
             return default
-        # Multi-value DICOM tags may arrive as list-like wrappers.
+        # Las etiquetas DICOM multivalor pueden llegar como envoltorios tipo lista.
         if isinstance(val, (list, tuple)):
             val = val[0] if val else default
         elif val.__class__.__name__ == 'MultiValue':

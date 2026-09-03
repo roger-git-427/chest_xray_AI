@@ -1,4 +1,4 @@
-"""Persistent, tenant-scoped study, screening, and report endpoints."""
+"""Endpoints persistentes de estudios, tamizaje e informes con alcance por inquilino."""
 
 from __future__ import annotations
 
@@ -73,7 +73,7 @@ def _study_access(db: Session, user: User, study: Study) -> None:
             or study.report is None
             or study.report.status != ReportStatus.FINAL
         ):
-            raise HTTPException(403, "Study access denied")
+            raise HTTPException(403, "Acceso al estudio denegado")
         return
     require_clinic_access(db, user, study.clinic_id)
 
@@ -92,7 +92,7 @@ def _load_study(db: Session, study_id: uuid.UUID) -> Study:
         .where(Study.id == study_id)
     )
     if study is None:
-        raise HTTPException(404, "Study not found")
+        raise HTTPException(404, "Estudio no encontrado")
     return study
 
 
@@ -107,15 +107,15 @@ async def upload_and_screen(
     db: Session = Depends(get_db),
 ):
     if principal.user.role == UserRole.PATIENT:
-        raise HTTPException(403, "Patients cannot upload studies")
+        raise HTTPException(403, "Los pacientes no pueden subir estudios")
 
     raw = await file.read()
     if not raw:
-        raise HTTPException(400, "File is empty")
+        raise HTTPException(400, "El archivo está vacío")
     filename = file.filename or "study"
     dicom = is_dicom_file(filename, file.content_type)
     if not dicom and file.content_type and not file.content_type.startswith("image/"):
-        raise HTTPException(400, "File must be an image or DICOM")
+        raise HTTPException(400, "El archivo debe ser una imagen o DICOM")
 
     outcome = screen_and_persist(
         db,
@@ -192,7 +192,7 @@ def list_studies(
     else:
         if clinic_id is None:
             if principal.user.role != UserRole.MASTER:
-                raise HTTPException(400, "clinic_id is required")
+                raise HTTPException(400, "Se requiere clinic_id")
         else:
             require_clinic_access(db, principal.user, clinic_id)
             query = query.where(Study.clinic_id == clinic_id)
@@ -260,7 +260,7 @@ def get_heatmap(
         .where(ScreeningFinding.heatmap_file_id == file_id)
     )
     if finding is None or finding.heatmap_file is None:
-        raise HTTPException(404, "Heatmap not found")
+        raise HTTPException(404, "Mapa de calor no encontrado")
     _study_access(db, principal.user, finding.screening_run.study)
     raw = get_storage().get(finding.heatmap_file.storage_key)
     return Response(raw, media_type=finding.heatmap_file.content_type)
@@ -274,10 +274,10 @@ def save_report(
     db: Session = Depends(get_db),
 ):
     if principal.user.role == UserRole.PATIENT:
-        raise HTTPException(403, "Patients cannot edit reports")
+        raise HTTPException(403, "Los pacientes no pueden editar informes")
     study = db.get(Study, study_id)
     if study is None:
-        raise HTTPException(404, "Study not found")
+        raise HTTPException(404, "Estudio no encontrado")
     require_clinic_access(db, principal.user, study.clinic_id)
     report = study.report or Report(study_id=study.id)
     report.impression = body.impression
@@ -304,10 +304,10 @@ def review_report(
     db: Session = Depends(get_db),
 ):
     if principal.user.role == UserRole.PATIENT:
-        raise HTTPException(403, "Patients cannot review reports")
+        raise HTTPException(403, "Los pacientes no pueden revisar informes")
     study = db.get(Study, study_id)
     if study is None:
-        raise HTTPException(404, "Study not found")
+        raise HTTPException(404, "Estudio no encontrado")
     require_clinic_access(db, principal.user, study.clinic_id)
     report = study.report or Report(study_id=study.id)
     report.status = ReportStatus.FINAL
@@ -335,7 +335,7 @@ def mark_exported(
 ):
     study = db.get(Study, study_id)
     if study is None:
-        raise HTTPException(404, "Study not found")
+        raise HTTPException(404, "Estudio no encontrado")
     _study_access(db, principal.user, study)
     if principal.user.role != UserRole.PATIENT:
         study.status = StudyStatus.EXPORTED

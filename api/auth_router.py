@@ -1,4 +1,4 @@
-"""Authentication endpoints backed by revocable database sessions."""
+"""Endpoints de autenticación basados en sesiones de base de datos revocables."""
 
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ def login(body: LoginBody, response: Response, db: Session = Depends(get_db)):
         body.password, user.password_hash
     ):
         raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED, "Invalid email or password"
+            status.HTTP_401_UNAUTHORIZED, "Correo o contraseña no válidos"
         )
 
     session, token = create_session(db, user)

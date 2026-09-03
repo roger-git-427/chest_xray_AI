@@ -1,4 +1,4 @@
-"""Private binary storage with local and Azure Blob implementations."""
+"""Almacenamiento binario privado con implementaciones local y Azure Blob."""
 
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ class LocalStorage(StorageBackend):
     def _path(self, key: str) -> Path:
         path = (self.root / Path(key)).resolve()
         if path != self.root and self.root not in path.parents:
-            raise ValueError("Invalid storage key")
+            raise ValueError("Clave de almacenamiento no válida")
         return path
 
     def put(
@@ -117,7 +117,7 @@ class AzureBlobStorage(StorageBackend):
         try:
             self.container.create_container()
         except Exception:
-            # It is expected that a private container may already exist.
+            # Es esperado que un contenedor privado ya exista.
             pass
 
     def put(

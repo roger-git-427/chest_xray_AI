@@ -82,7 +82,7 @@ export function StudyDataProvider({ children }: { children: ReactNode }) {
 export function useStudyData() {
   const context = useContext(StudyDataContext);
   if (!context) {
-    throw new Error('useStudyData must be used within StudyDataProvider');
+    throw new Error('useStudyData debe usarse dentro de StudyDataProvider');
   }
   return context;
 }

@@ -1,4 +1,4 @@
-"""Database models for identity, tenancy, studies, and audit history."""
+"""Modelos de base de datos para identidad, multiinquilino, estudios e historial de auditoría."""
 
 from __future__ import annotations
 

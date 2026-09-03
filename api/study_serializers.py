@@ -1,4 +1,4 @@
-"""Canonical JSON serialization for persisted studies."""
+"""Serialización JSON canónica para estudios persistidos."""
 
 from __future__ import annotations
 

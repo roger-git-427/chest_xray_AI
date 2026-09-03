@@ -224,7 +224,7 @@ function ScreeningApp() {
           <WorkflowBar step={s.workflowStep} />
         </div>
 
-        {/* Laptop (lg): sidebar | study → viewport → informe. XL: sidebar | study + viewport | informe */}
+        {/* Portátil (lg): barra lateral | estudio → visor → informe. XL: barra lateral | estudio + visor | informe */}
         <div className="pro-desktop-grid hidden lg:grid lg:items-start lg:gap-5 xl:gap-6">
           <aside className="pro-desktop-sidebar flex min-h-0 flex-col gap-5">
             <ConditionsRail

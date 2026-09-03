@@ -1,21 +1,21 @@
 # ── config.py ─────────────────────────────────────────────
-# All hyperparameters and paths in one place.
-# Change settings here — nothing else needs editing.
+# Todos los hiperparámetros y rutas en un solo lugar.
+# Cambia la configuración aquí — no hace falta editar nada más.
 
 import torch
 from pathlib import Path
 
-# ── Paths ─────────────────────────────────────────────────
+# ── Rutas ─────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent
 IMAGE_DIR  = 'data/images/images'
 CSV_PATH   = 'data/Data_Entry_2017_v2020.csv'
 TRAIN_TXT  = 'data/train_val_list.txt'
 TEST_TXT   = 'data/test_list.txt'
 
-# ── Checkpoints and conditions ────────────────────────────────────────────
-# Each condition writes to its own files (e.g. best_model_effusion.pth).
-# Train: python train.py --condition Effusion
-# Eval:  python evaluate.py --condition Effusion
+# ── Checkpoints y condiciones ────────────────────────────────────────────
+# Cada condición escribe en sus propios archivos (p. ej. best_model_effusion.pth).
+# Entrenar: python train.py --condition Effusion
+# Evaluar:  python evaluate.py --condition Effusion
 
 CONDITION = 'Effusion'
 
@@ -29,7 +29,7 @@ def best_model_path(condition):
 
 
 def set_active_condition(condition):
-    """Switch target disease for train / eval / inference."""
+    """Cambia la enfermedad objetivo para entrenamiento / evaluación / inferencia."""
     global CONDITION, CHECKPOINT_PATH, BEST_MODEL_PATH
     CONDITION = condition
     CHECKPOINT_PATH = checkpoint_path(condition)
@@ -39,7 +39,7 @@ def set_active_condition(condition):
 CHECKPOINT_PATH = checkpoint_path(CONDITION)
 BEST_MODEL_PATH = best_model_path(CONDITION)
 
-# Spanish labels for UI only (CONDITION stays English for data/code)
+# Etiquetas en español solo para la UI (CONDITION permanece en inglés para datos/código)
 CONDITION_LABEL_ES = {
     'Cardiomegaly': 'Cardiomegalia',
     'Effusion': 'Derrame pleural',
@@ -63,7 +63,7 @@ def condition_label_es(condition=None):
     return CONDITION_LABEL_ES.get(condition, condition.replace('_', ' '))
 
 
-# Screening flag thresholds (tune on validation; locked per condition)
+# Umbrales de marcaje para tamizaje (ajustar en validación; fijados por condición)
 DEFAULT_REVIEW_THRESHOLD = 0.3
 REVIEW_THRESHOLDS = {
     'Cardiomegaly': 0.3,
@@ -79,7 +79,7 @@ def review_threshold(condition=None):
     return REVIEW_THRESHOLDS.get(condition, DEFAULT_REVIEW_THRESHOLD)
 
 
-# Conditions exposed in the web UI (order preserved; needs best_model_<condition>.pth)
+# Condiciones expuestas en la UI web (orden conservado; requiere best_model_<condition>.pth)
 SCREENING_CONDITIONS = [
     'Cardiomegaly',
     'Effusion',
@@ -95,7 +95,7 @@ def available_screening_conditions():
         if Path(best_model_path(c)).is_file()
     ]
 
-# ── Training ──────────────────────────────────────────────
+# ── Entrenamiento ──────────────────────────────────────────────
 SEED       = 42
 IMG_SIZE   = 224
 BATCH_SIZE = 32
@@ -103,8 +103,8 @@ NUM_EPOCHS = 30
 LR         = 1e-4
 NUM_WORKERS = 0
 
-# ── Model ─────────────────────────────────────────────────
+# ── Modelo ─────────────────────────────────────────────────
 MODEL_NAME = 'convnext_tiny.fb_in22k_ft_in1k'
 
-# ── Device ────────────────────────────────────────────────
+# ── Dispositivo ────────────────────────────────────────────────
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

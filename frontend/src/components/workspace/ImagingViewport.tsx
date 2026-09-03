@@ -159,7 +159,7 @@ export function ImagingViewport({
     try {
       (e.target as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {
-      /* ignore */
+      /* ignorar */
     }
   };
 

@@ -1,4 +1,4 @@
-"""NIH CSV study metadata (read-only, in-memory cache)."""
+"""Metadatos de estudios del CSV NIH (solo lectura, caché en memoria)."""
 
 from __future__ import annotations
 
